@@ -1,0 +1,6 @@
+{
+  "name": "MyEduRide Gate Manager",
+  "description": "Student safety platform with QR code code scanning at the gate, automatic arrival and departure logs, parent dismissal dashboards, and real-time alerts.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

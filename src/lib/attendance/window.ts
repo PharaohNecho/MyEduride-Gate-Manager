@@ -1,0 +1,1 @@
+export const ATTENDANCE_UI_NOTE = "Attendance can only be captured during authorized gate scanning windows (typically 7:30 AM to 9:30 AM WAT for arrivals, and 1:30 PM to 4:00 PM WAT for dismissals).";
