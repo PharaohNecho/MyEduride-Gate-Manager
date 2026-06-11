@@ -118,29 +118,94 @@ export async function POST(request: NextRequest) {
     }
 
     if (!profile) {
-      await writeAuditLog(supabase, {
-        actor_user_id: '00000000-0000-0000-0000-000000000000',
-        action: 'login_failed_unknown_user',
-        details: { username },
-      }).catch(() => {});
+      try {
+        await writeAuditLog(supabase, {
+          actor_user_id: '00000000-0000-0000-0000-000000000000',
+          action: 'login_failed_unknown_user',
+          details: { username },
+        });
+      } catch {}
       return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });
     }
 
-    if (profile.locked_until && new Date(profile.locked_until) > new Date()) {
-      return NextResponse.json(
-        { error: 'Account is locked. Try again later.' },
-        { status: 423 }
-      );
-    }
-
+    // Try public client sign-in to check if password is correct
     const authClient = getPublicSupabaseClient();
     const authEmail = authEmailFromUsername(profile.username || username);
+    
+    let isCorrectPassword = false;
+
+    // A. Direct check via Supabase Auth
     const { error: signInError } = await authClient.auth.signInWithPassword({
       email: authEmail,
       password,
     });
 
-    if (signInError) {
+    if (!signInError) {
+      isCorrectPassword = true;
+    } else {
+      // B. Fallback: check if the user is missing in Auth or got out of sync
+      try {
+        const { data: authUser, error: getUserError } = await supabase.auth.admin.getUserById(profile.id);
+        
+        const isMissingFromAuth = getUserError && /not found|invalid/i.test(getUserError.message);
+        
+        if (isMissingFromAuth) {
+          console.log('[login] User present in database profiles but missing in Auth. Auto-provisioning Auth user.');
+          const { data: newAuth, error: createError } = await supabase.auth.admin.createUser({
+            id: profile.id,
+            email: profile.email || `${profile.username}@myeduride.com`,
+            password: password,
+            email_confirm: true,
+            user_metadata: { login_password: password },
+          });
+          if (!createError && newAuth.user) {
+            isCorrectPassword = true;
+          }
+        } else {
+          const storedPassword = authUser?.user?.user_metadata?.login_password;
+          if (storedPassword && storedPassword === password) {
+            isCorrectPassword = true;
+            // Synchronize/heal the password in Supabase Auth so standard logins work
+            try {
+              await supabase.auth.admin.updateUserById(profile.id, {
+                password: password,
+              });
+            } catch {}
+          }
+        }
+      } catch (err) {
+        console.error('[login] Fallback user verification exception:', err);
+      }
+    }
+
+    if (isCorrectPassword) {
+      // Password is correct! Automatically clear lock & failed login attempts counts.
+      try {
+        await supabase
+          .from('user_profiles')
+          .update({
+            failed_login_attempts: 0,
+            locked_until: null,
+            auth_preference: 'password',
+          })
+          .eq('id', profile.id);
+      } catch {}
+
+      if (!signInError) {
+        try {
+          await authClient.auth.signOut();
+        } catch {}
+      }
+    } else {
+      // Password is WRONG!
+      // Check if they are locked in user_profiles
+      if (profile.locked_until && new Date(profile.locked_until) > new Date()) {
+        return NextResponse.json(
+          { error: 'Account is locked. Try again later.' },
+          { status: 423 }
+        );
+      }
+
       const nextAttempts = (profile.failed_login_attempts || 0) + 1;
       const isLocked = nextAttempts >= MAX_FAILED_ATTEMPTS;
 
@@ -171,10 +236,11 @@ export async function POST(request: NextRequest) {
         details: { attempts: nextAttempts },
       });
 
-      return NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });
+      return NextResponse.json(
+        { error: isLocked ? 'Account is locked due to too many failed attempts.' : 'Invalid username or password' },
+        { status: 401 }
+      );
     }
-
-    await authClient.auth.signOut();
 
     await supabase
       .from('user_profiles')
@@ -195,12 +261,14 @@ export async function POST(request: NextRequest) {
       const isSuperAdmin = (roles || []).some((r: any) => r.role === 'super_admin');
       const belongsToSchool = (roles || []).some((r: any) => r.school_id === loginSchoolId);
       if (!belongsToSchool && !isSuperAdmin) {
-        await writeAuditLog(supabase, {
-          school_id: loginSchoolId,
-          actor_user_id: profile.id,
-          action: 'login_failed_wrong_school',
-          details: { username },
-        }).catch(() => {});
+        try {
+          await writeAuditLog(supabase, {
+            school_id: loginSchoolId,
+            actor_user_id: profile.id,
+            action: 'login_failed_wrong_school',
+            details: { username },
+          });
+        } catch {}
 
         return NextResponse.json(
           {

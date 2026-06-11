@@ -274,11 +274,9 @@ export default function SchoolAdminDashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-tr from-[#eef4ff] via-[#f8fafc] to-[#FFFFFF] flex text-slate-800 font-sans selection:bg-[#fbbf24]/20 selection:text-[#1e3a8a] relative">
       
-      {/* Sidebar Navigation */}
-      <aside className={`bg-[#0f172a] text-[#94a3b8] shrink-0 transition-all duration-300 z-50 flex flex-col justify-between border-r border-slate-800/40 relative shadow-2xl ${
+      {/* Sidebar Navigation - Desktop only, hidden on mobile */}
+      <aside className={`hidden md:flex bg-[#0f172a] text-[#94a3b8] shrink-0 transition-all duration-300 z-50 flex-col justify-between border-r border-slate-800/40 relative shadow-2xl ${
         isSidebarExpanded ? 'w-64' : 'w-20'
-      } ${
-        isMobileMenuOpen ? 'fixed inset-y-0 left-0 translate-x-0' : 'fixed inset-y-0 left-0 -translate-x-full md:relative md:translate-x-0'
       }`}>
         {/* Sidebar Header */}
         <div>
@@ -295,17 +293,11 @@ export default function SchoolAdminDashboard() {
             
             {/* Sidebar Toggle Button (Desktop & Mobile Close) */}
             <button 
-              onClick={() => {
-                if (isMobileMenuOpen) {
-                  setIsMobileMenuOpen(false);
-                } else {
-                  setIsSidebarExpanded(!isSidebarExpanded);
-                }
-              }}
+              onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
               className="p-1.5 rounded-lg bg-slate-800/60 text-slate-300 hover:text-white cursor-pointer hover:bg-slate-800 transition-all ml-1.5"
               title="Toggle sidebar size"
             >
-              {isMobileMenuOpen ? <X size={16} /> : <Sliders size={16} />}
+              <Sliders size={16} />
             </button>
           </div>
 
@@ -326,7 +318,6 @@ export default function SchoolAdminDashboard() {
                   key={tab.id}
                   onClick={() => {
                     setActiveTab(tab.id);
-                    setIsMobileMenuOpen(false);
                   }}
                   className={`w-full p-3 rounded-xl flex items-center gap-3 font-bold text-xs transition-all pointer cursor-pointer hover:bg-slate-800/50 hover:text-white ${
                     isActive 
@@ -367,21 +358,100 @@ export default function SchoolAdminDashboard() {
         )}
       </aside>
 
+      {/* Mobile Bottom Menu Bar (sticky navigation bar at the bottom for mobile devices, hidden on desktop/tablet) */}
+      <div className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-[#0a1424] border-t border-slate-800/80 px-2 pt-2.5 pb-4 shadow-[0_-12px_35px_rgba(0,0,0,0.5)] backdrop-blur-md bg-opacity-95 select-none">
+        <div className="flex items-center justify-between max-w-lg mx-auto h-14">
+          
+          {/* 1. Home tab button */}
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`flex flex-col items-center justify-center flex-1 h-full select-none cursor-pointer border-none bg-transparent ${
+              activeTab === 'dashboard' ? 'text-white' : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'dashboard' ? 'bg-[#1e40af] text-amber-400' : 'text-slate-400'}`}>
+              <LayoutDashboard size={18} />
+            </div>
+            <span className={`text-[9.5px] mt-0.5 tracking-tight font-black uppercase ${activeTab === 'dashboard' ? 'text-amber-400' : 'text-slate-400'}`}>
+              Home
+            </span>
+          </button>
+
+          {/* 2. RFID Cards printing / viewing button */}
+          <button
+            onClick={() => setActiveTab('id-cards')}
+            className={`flex flex-col items-center justify-center flex-1 h-full select-none cursor-pointer border-none bg-transparent ${
+              activeTab === 'id-cards' ? 'text-white' : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'id-cards' ? 'bg-[#1e40af] text-amber-400' : 'text-slate-400'}`}>
+              <CreditCard size={18} />
+            </div>
+            <span className={`text-[9.5px] mt-0.5 tracking-tight font-black uppercase ${activeTab === 'id-cards' ? 'text-amber-400' : 'text-slate-400'}`}>
+              Cards
+            </span>
+          </button>
+
+          {/* 3. Central Scan [O] simulator button with glowing pulse wave effect */}
+          <div className="relative -mt-6 px-1.5 flex flex-col items-center justify-center">
+            <div className="absolute inset-0 bg-gradient-to-tr from-[#fbbf24] to-[#f59e0b] rounded-full blur-md opacity-35 scale-110 animate-pulse" />
+            <button
+              type="button"
+              onClick={() => {
+                setScanStep(1);
+                setSelectedSimStudent(null);
+                setIsScanModalOpen(true);
+              }}
+              className="relative w-14 h-14 rounded-full bg-gradient-to-tr from-[#fbbf24] via-[#f59e0b] to-[#fbbf24] flex items-center justify-center text-slate-950 font-black shadow-[0_8px_20px_rgba(245,158,11,0.45)] hover:scale-105 active:scale-95 transition-all outline-none border-none cursor-pointer"
+              title="Open Gate Simulator"
+              aria-label="Scanner tool"
+            >
+              <QrCode size={20} className="text-slate-900 stroke-[2.5]" />
+            </button>
+            <span className="text-[9.5px] mt-1 tracking-tight font-black text-amber-400 uppercase">
+              SCAN
+            </span>
+          </div>
+
+          {/* 4. Profile / Settings tab button */}
+          <button
+            onClick={() => setActiveTab('account')}
+            className={`flex flex-col items-center justify-center flex-1 h-full select-none cursor-pointer border-none bg-transparent ${
+              activeTab === 'account' ? 'text-white' : 'text-slate-400 hover:text-[#fbbf24]'
+            }`}
+          >
+            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'account' ? 'bg-[#1e40af] text-amber-400' : 'text-slate-400'}`}>
+              <User size={18} />
+            </div>
+            <span className={`text-[9.5px] mt-0.5 tracking-tight font-black uppercase ${activeTab === 'account' ? 'text-amber-400' : 'text-slate-400'}`}>
+              Profile
+            </span>
+          </button>
+
+          {/* 5. Secure Session Logout button */}
+          <button
+            onClick={logout}
+            className="flex flex-col items-center justify-center flex-1 h-full select-none cursor-pointer border-none bg-transparent text-slate-400 hover:text-red-400"
+            title="Log out of Terminal"
+          >
+            <div className="p-1.5 rounded-xl transition-all text-slate-400 hover:text-red-400 bg-slate-800/20">
+              <LogOut size={18} />
+            </div>
+            <span className="text-[9.5px] mt-0.5 tracking-tight font-black uppercase text-slate-400">
+              Logout
+            </span>
+          </button>
+
+        </div>
+      </div>
+
       {/* Main Content Pane */}
       <div className="flex-1 min-w-0 flex flex-col relative pb-24 md:pb-6">
         
         {/* Header Row */}
         <header className="bg-white/80 backdrop-blur-md sticky top-0 border-b border-slate-100 z-40 px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {/* Mobile Hamburger drawer trigger for sidebar tabs */}
-            <button 
-              onClick={() => setIsMobileMenuOpen(true)}
-              className="p-2 -ml-2 rounded-xl text-slate-500 hover:bg-slate-50 hover:text-slate-800 md:hidden min-w-[40px] min-h-[40px] flex items-center justify-center cursor-pointer border-none"
-              title="Open sections menu"
-              aria-label="Toggle menu"
-            >
-              <Menu size={20} />
-            </button>
+            {/* Mobile menu trigger is not needed with bottom navigation */}
 
             <div>
               <h1 className="text-sm font-black text-[#1a2238] uppercase tracking-tight">{schoolName || 'Prototype Academy'}</h1>
@@ -1440,77 +1510,6 @@ export default function SchoolAdminDashboard() {
         )}
 
       </main>
-
-      {/* FLOATING GLASSMORPHIC NAVIGATION BAR (STRICTLY ON MOBILE SCREENS md:hidden) */}
-      {/* Centered orange/yellow [O] Scan button matches perfectly the layout of the user photo */}
-      <div id="floating_mobile_dock" className="fixed bottom-5 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-md rounded-2xl shadow-[0_20px_45px_rgba(0,0,0,0.12)] border border-slate-100/60 px-5 py-2.5 flex items-center justify-between gap-6 z-40 max-w-sm w-[92%] md:hidden transition-transform duration-300">
-        
-        <button 
-          onClick={() => {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-            setToastText('Home stage ready');
-            setTimeout(() => setToastText(''), 1500);
-          }}
-          className="flex flex-col items-center justify-center text-[#1e3a8a] hover:text-[#1e40af] outline-none border-none bg-transparent min-w-[44px] min-h-[44px]"
-          title="Scroll up"
-          aria-label="Home"
-        >
-          <span className="text-xs font-black">Home</span>
-        </button>
-
-        <button 
-          onClick={() => {
-            document.getElementById('gate_activity_card')?.scrollIntoView({ behavior: 'smooth' });
-          }}
-          className="flex flex-col items-center justify-center text-slate-400 hover:text-[#1e3a8a] outline-none border-none bg-transparent min-w-[44px] min-h-[44px]"
-          title="Jump to logs"
-          aria-label="Activity logs"
-        >
-          <span className="text-xs font-bold text-slate-500">Logs</span>
-        </button>
-
-        {/* Dynamic Center Action Scanning Button [O] (Vibrant golden circle matching floating scan in the image) */}
-        <div className="relative -mt-6">
-          <div className="absolute inset-0 bg-gradient-to-tr from-[#fbbf24] to-[#f59e0b] rounded-full blur-md opacity-50 scale-105 animate-pulse" />
-          <button
-            type="button"
-            onClick={() => {
-              setScanStep(1);
-              setSelectedSimStudent(null);
-              setIsScanModalOpen(true);
-            }}
-            className="relative w-14 h-14 rounded-full bg-gradient-to-tr from-[#fbbf24] via-[#f59e0b] to-[#fbbf24] flex items-center justify-center text-slate-950 font-black shadow-[0_8px_20px_rgba(245,158,11,0.4)] hover:scale-105 active:scale-95 transition-all text-sm outline-none border-none"
-            title="Scan student card RFID"
-            aria-label="Scanner tool"
-          >
-            [O]
-          </button>
-        </div>
-
-        <button 
-          onClick={() => {
-            setShowNotifications(!showNotifications);
-          }}
-          className="flex flex-col items-center justify-center text-slate-400 hover:text-[#1e3a8a] outline-none border-none bg-transparent min-w-[44px] min-h-[44px]"
-          title="Alerts pane"
-          aria-label="Alerts"
-        >
-          <span className="text-xs font-bold text-slate-500">Alerts</span>
-        </button>
-
-        <button 
-          onClick={() => {
-            // Standard action to display setups
-            window.location.href = '/dashboard';
-          }}
-          className="flex flex-col items-center justify-center text-slate-400 hover:text-[#1e3a8a] outline-none border-none bg-transparent min-w-[44px] min-h-[44px]"
-          title="Roles switch"
-          aria-label="My Roles"
-        >
-          <span className="text-xs font-bold text-slate-500">Roles</span>
-        </button>
-
-      </div>
 
       {/* POPUP SIMULATOR MODAL: Highly engaging student RFID/QR scan emulator */}
       {isScanModalOpen && (

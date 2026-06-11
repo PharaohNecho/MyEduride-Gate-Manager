@@ -114,7 +114,9 @@ export async function POST(request: NextRequest) {
     if (schoolInsErr) {
       console.error('[register-school] School record insert failed:', schoolInsErr.message);
       // Try cleaning up auth user in case of transaction failure
-      await supabase.auth.admin.deleteUser(userId).catch(() => {});
+      try {
+        await supabase.auth.admin.deleteUser(userId);
+      } catch {}
       return NextResponse.json(
         { error: `Failed to register school: ${schoolInsErr.message}` },
         { status: 500 }
@@ -134,8 +136,12 @@ export async function POST(request: NextRequest) {
     if (profileInsErr) {
       console.error('[register-school] Profile insert failed:', profileInsErr.message);
       // Clean up school and auth user
-      await supabase.from('schools').delete().eq('id', schoolId).catch(() => {});
-      await supabase.auth.admin.deleteUser(userId).catch(() => {});
+      try {
+        await supabase.from('schools').delete().eq('id', schoolId);
+      } catch {}
+      try {
+        await supabase.auth.admin.deleteUser(userId);
+      } catch {}
       return NextResponse.json(
         { error: `Failed to create admin profile: ${profileInsErr.message}` },
         { status: 500 }
@@ -155,9 +161,15 @@ export async function POST(request: NextRequest) {
     if (roleInsErr) {
       console.error('[register-school] Role insert failed:', roleInsErr.message);
       // Clean up
-      await supabase.from('user_profiles').delete().eq('id', userId).catch(() => {});
-      await supabase.from('schools').delete().eq('id', schoolId).catch(() => {});
-      await supabase.auth.admin.deleteUser(userId).catch(() => {});
+      try {
+        await supabase.from('user_profiles').delete().eq('id', userId);
+      } catch {}
+      try {
+        await supabase.from('schools').delete().eq('id', schoolId);
+      } catch {}
+      try {
+        await supabase.auth.admin.deleteUser(userId);
+      } catch {}
       return NextResponse.json(
         { error: `Failed to assign administrator role: ${roleInsErr.message}` },
         { status: 500 }
