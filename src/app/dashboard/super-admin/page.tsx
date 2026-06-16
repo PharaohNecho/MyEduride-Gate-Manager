@@ -807,7 +807,7 @@ export default function SuperAdminDashboard() {
       </AnimatePresence>
 
       {/* DESKTOP SIDEBAR - MATCHES PREVIOUS LOOK & SCREENSHOT WHITESPACE/LAYOUT PERFECTLY */}
-      <aside className={`hidden md:flex bg-[#0f172a] text-[#94a3b8] shrink-0 border-r border-slate-800/40 transition-all duration-300 z-45 flex-col justify-between relative shadow-2xl h-screen sticky top-0 py-6 select-none ${
+      <aside className={`hidden md:flex bg-[#0f172a] text-[#94a3b8] shrink-0 border-r border-slate-800/40 transition-all duration-300 z-45 flex-col justify-between relative shadow-2xl h-screen sticky top-0 py-6 select-none overflow-y-auto custom-scrollbar ${
         isSidebarExpanded ? 'w-64' : 'w-22'
       }`}>
         <div>

@@ -721,7 +721,7 @@ export default function ParentDashboard() {
         {/* ========================================= */}
         {/* SIDEBAR FOR DESKTOP AND TABLETS */}
         {/* ========================================= */}
-        <aside className="hidden md:flex md:w-72 bg-white border-r border-slate-200/50 flex-col py-8 px-6 shrink-0 relative sticky top-0 h-screen justify-between shadow-2xs z-30">
+        <aside className="hidden md:flex md:w-72 bg-white border-r border-slate-200/50 flex-col py-8 px-6 shrink-0 relative sticky top-0 h-screen justify-between shadow-2xs z-30 overflow-y-auto custom-scrollbar">
           <div className="space-y-8">
             {/* Elegant Header Branding */}
             <div>

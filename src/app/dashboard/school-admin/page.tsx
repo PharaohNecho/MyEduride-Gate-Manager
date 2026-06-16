@@ -430,7 +430,7 @@ export default function SchoolAdminDashboard() {
     <div className="min-h-screen bg-gradient-to-tr from-[#eef4ff] via-[#f8fafc] to-[#FFFFFF] flex text-slate-800 font-sans selection:bg-[#fbbf24]/20 selection:text-[#1e3a8a] relative">
       
       {/* Sidebar Navigation - Desktop only, hidden on mobile */}
-      <aside className={`hidden md:flex bg-[#0f172a] text-[#94a3b8] shrink-0 transition-all duration-300 z-50 flex-col justify-between border-r border-slate-800/40 relative shadow-2xl ${
+      <aside className={`hidden md:flex bg-[#0f172a] text-[#94a3b8] shrink-0 transition-all duration-300 z-50 flex-col justify-between border-r border-slate-800/40 relative shadow-2xl h-screen sticky top-0 py-6 select-none overflow-y-auto custom-scrollbar ${
         isSidebarExpanded ? 'w-64' : 'w-20'
       }`}>
         {/* Sidebar Header */}
