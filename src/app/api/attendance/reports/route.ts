@@ -459,7 +459,7 @@ export async function GET(request: NextRequest) {
     const grandAbsent = dailySummaries.reduce((a, d) => a + d.absent, 0);
     const grandTotal = totalStudents * totalDays;
     const monthCalendarDays =
-      reportType === 'monthly' || reportType === 'weekly' ? dayStrings : schoolDayStrings;
+      reportType === 'monthly' || reportType === 'weekly' || reportType === 'history' || reportType === 'all' ? dayStrings : schoolDayStrings;
 
     const studentMonthly = students.map((s) => {
       let present = 0;
@@ -498,7 +498,7 @@ export async function GET(request: NextRequest) {
     });
 
     const staffReport =
-      (reportType === 'monthly' || reportType === 'weekly') && includeStaff
+      (reportType === 'monthly' || reportType === 'weekly' || reportType === 'history' || reportType === 'all') && includeStaff
         ? await buildStaffMonthlyReport(
             supabase,
             resolvedSchoolId,
@@ -569,9 +569,9 @@ export async function GET(request: NextRequest) {
       daily_summaries: dailySummaries,
       class_breakdown: classBreakdown,
       student_monthly:
-        reportType === 'monthly' || reportType === 'weekly' ? studentMonthly : undefined,
+        reportType === 'monthly' || reportType === 'weekly' || reportType === 'history' || reportType === 'all' ? studentMonthly : undefined,
       staff_report:
-        (reportType === 'monthly' || reportType === 'weekly') && includeStaff
+        (reportType === 'monthly' || reportType === 'weekly' || reportType === 'history' || reportType === 'all') && includeStaff
           ? staffReport
           : undefined,
     });

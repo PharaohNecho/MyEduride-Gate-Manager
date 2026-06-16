@@ -69,8 +69,7 @@ export default function ReadyForPickupPanel({ schoolId }: { schoolId: string }) 
         .select(`
           id,
           student_id,
-          pickup_person_name,
-          relationship,
+          notes,
           status,
           created_at,
           student:students(first_name, last_name, photo_url)
@@ -81,7 +80,22 @@ export default function ReadyForPickupPanel({ schoolId }: { schoolId: string }) 
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setStudents(data as any[] || []);
+
+      const processed = (data as any[] || []).map((item) => {
+        let req = { ...item, pickup_person_name: '', relationship: '' };
+        if (item.notes) {
+          try {
+            const parsed = JSON.parse(item.notes);
+            req.pickup_person_name = parsed.pickup_person_name || '';
+            req.relationship = parsed.relationship || '';
+          } catch (e) {
+            // ignore
+          }
+        }
+        return req;
+      });
+
+      setStudents(processed);
     } catch (err) {
       console.error('[ReadyForPickupPanel] Error loading:', err);
     } finally {

@@ -13,6 +13,24 @@ export function isSupabaseConfigured(): boolean {
 
 export function createClient() {
   if (!isSupabaseConfigured()) {
+    const createQueryBuilder = (mockData: any = []) => {
+      const builder: any = new Proxy(() => {}, {
+        get(target, prop) {
+          if (prop === 'then') {
+            return (onfulfilled: any) => {
+              return Promise.resolve(onfulfilled({ data: mockData, error: null }));
+            };
+          };
+          // Chain any of select, eq, in, order, maybeSingle, insert, etc.
+          return () => builder;
+        },
+        apply() {
+          return builder;
+        }
+      });
+      return builder;
+    };
+
     // Return a mocked/safe client so it doesn't crash on load
     return new Proxy({} as any, {
       get(target, prop) {
@@ -23,19 +41,7 @@ export function createClient() {
             onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
           };
         }
-        return () => ({
-          select: () => ({
-            eq: () => ({
-              eq: () => ({
-                single: async () => ({ data: null, error: null }),
-                order: async () => ({ data: [], error: null }),
-              }),
-              single: async () => ({ data: null, error: null }),
-              order: async () => ({ data: [], error: null }),
-            }),
-            order: async () => ({ data: [], error: null }),
-          }),
-        });
+        return () => createQueryBuilder([]);
       },
     });
   }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient, isSupabaseConfigured } from '@/lib/supabase/admin';
+import { Resend } from 'resend';
 import {
   canListSchoolStudents,
   canViewSchoolCustomFields,
@@ -515,6 +516,172 @@ export async function POST(request: NextRequest) {
         }));
 
         return NextResponse.json({ children });
+      }
+
+      case 'create_dismissal_request': {
+        const { student_id, school_id, pickup_person_name, relationship, dismissal_date } = params;
+
+        if (!student_id || !pickup_person_name) {
+          return NextResponse.json({ error: 'student_id and pickup_person_name are required' }, { status: 400 });
+        }
+
+        const serializedNotes = JSON.stringify({
+          pickup_person_name,
+          relationship: relationship || 'Guardian',
+          pickup_person_phone: params.pickup_person_phone || ''
+        });
+
+        // Check if a dismissal request already exists for the student and date
+        const { data: existingRequest, error: findError } = await supabase
+          .from('dismissal_requests')
+          .select('*')
+          .eq('student_id', student_id)
+          .eq('dismissal_date', dismissal_date)
+          .maybeSingle();
+
+        if (findError) {
+          console.error('[create_dismissal_request] DB find error:', findError);
+        }
+
+        let requestData, insertError;
+
+        if (existingRequest) {
+          if (existingRequest.status !== 'pending') {
+            return NextResponse.json({ 
+              error: `A dismissal request has already been ${existingRequest.status} for this student today.` 
+            }, { status: 400 });
+          }
+
+          // Update the existing pending request with new pickup parent / details
+          const { data, error } = await supabase
+            .from('dismissal_requests')
+            .update({
+              requested_by_user_id: session.user_id,
+              notes: serializedNotes,
+              created_at: new Date().toISOString()
+            })
+            .eq('id', existingRequest.id)
+            .select()
+            .maybeSingle();
+
+          requestData = data;
+          insertError = error;
+        } else {
+          // Insert a new request into database
+          const { data, error } = await supabase
+            .from('dismissal_requests')
+            .insert({
+              student_id,
+              school_id: school_id || 'demo-school-id',
+              requested_by_user_id: session.user_id,
+              notes: serializedNotes,
+              status: 'pending',
+              dismissal_date,
+              created_at: new Date().toISOString()
+            })
+            .select()
+            .maybeSingle();
+
+          requestData = data;
+          insertError = error;
+        }
+
+        if (insertError) {
+          console.error('[create_dismissal_request] DB save error:', insertError);
+          return NextResponse.json({ error: insertError.message }, { status: 500 });
+        }
+
+        let returnedData = requestData;
+        if (returnedData && returnedData.notes) {
+          try {
+            const parsed = JSON.parse(returnedData.notes);
+            returnedData = {
+              ...returnedData,
+              pickup_person_name: parsed.pickup_person_name,
+              relationship: parsed.relationship,
+              pickup_person_phone: parsed.pickup_person_phone
+            };
+          } catch (e) {
+            console.error('Failed to parse notes on create:', e);
+          }
+        }
+
+        // Get student & school details for email
+        const { data: student } = await supabase
+          .from('students')
+          .select('first_name, last_name, school_id, school:schools(name, primary_color)')
+          .eq('id', student_id)
+          .maybeSingle();
+
+        const studentName = student ? `${student.first_name} ${student.last_name}` : 'Student';
+        const schoolObj = student?.school ? (Array.isArray(student.school) ? student.school[0] : student.school) : null;
+        const schoolName = schoolObj?.name || 'MyEduRide Academy';
+        const schoolColor = schoolObj?.primary_color || '#10b981';
+
+        // Trigger email notification to parent
+        const parentEmail = session.email;
+        let emailSent = false;
+
+        if (parentEmail && process.env.RESEND_API_KEY) {
+          try {
+            const resend = new Resend(process.env.RESEND_API_KEY);
+            const dateStr = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+            const emailHtml = `
+              <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+                <div style="background: ${schoolColor}; padding: 24px; text-align: center; color: white;">
+                  <h2 style="margin: 0; font-size: 18px; font-weight: 800;">MyEduRide Safety Portal</h2>
+                  <p style="margin: 4px 0 0; font-size: 12px; opacity: 0.9;">Gate Dispatch Authorization</p>
+                </div>
+                <div style="padding: 24px; background: white;">
+                  <h3 style="color: #111827; margin-top: 0; font-size: 16px; font-weight: 700;">Pickup Clearance Registered</h3>
+                  <p style="color: #4b5563; font-size: 14px; line-height: 1.5;">You have authorized a gate release clearance for today's school dismissal.</p>
+
+                  <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 20px 0; border: 1px solid #f3f4f6;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                      <tr>
+                        <td style="color: #6b7280; padding: 4px 0; font-weight: 600;">STUDENT</td>
+                        <td style="color: #111827; padding: 4px 0; text-align: right; font-weight: 700;">${studentName}</td>
+                      </tr>
+                      <tr>
+                        <td style="color: #6b7280; padding: 4px 0; font-weight: 600;">PICKUP PERSON</td>
+                        <td style="color: #111827; padding: 4px 0; text-align: right; font-weight: 700; text-transform: capitalize;">${pickup_person_name}</td>
+                      </tr>
+                      <tr>
+                        <td style="color: #6b7280; padding: 4px 0; font-weight: 600;">RELATIONSHIP</td>
+                        <td style="color: #111827; padding: 4px 0; text-align: right; font-weight: 700; text-transform: capitalize;">${relationship}</td>
+                      </tr>
+                      <tr>
+                        <td style="color: #6b7280; padding: 4px 0; font-weight: 600;">DATE</td>
+                        <td style="color: #111827; padding: 4px 0; text-align: right; font-weight: 700;">${dateStr}</td>
+                      </tr>
+                      <tr>
+                        <td style="color: #6b7280; padding: 4px 0; font-weight: 600;">STATUS</td>
+                        <td style="color: #059669; padding: 4px 0; text-align: right; font-weight: 750; text-transform: uppercase;">PENDING CLEARANCE</td>
+                      </tr>
+                    </table>
+                  </div>
+
+                  <p style="color: #9ca3af; font-size: 11px; text-align: center; margin-top: 24px; border-top: 1px solid #f3f4f6; padding-top: 16px;">
+                    This email is an automated security receipt sent via MyEduRide Safety Portal.
+                  </p>
+                </div>
+              </div>
+            `;
+
+            await resend.emails.send({
+              from: `${schoolName} via MyEduRide <noreply@assetid.site>`,
+              to: parentEmail,
+              subject: `Pickup Authorization registered for ${studentName}`,
+              html: emailHtml,
+            });
+            emailSent = true;
+          } catch (emailErr) {
+            console.error('[create_dismissal_request] Resend Email error:', emailErr);
+          }
+        }
+
+        return NextResponse.json({ success: true, dismissal: returnedData, email_sent: emailSent });
       }
 
       case 'get_teacher_dashboard_full': {

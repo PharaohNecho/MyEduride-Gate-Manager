@@ -21,8 +21,7 @@ export async function fetchEnrichedPickupQueue(
             name,
             phone,
             relationship,
-            photo_url,
-            is_active
+            photo_url
           )
         `)
         .in('student_id', studentIds);
@@ -48,7 +47,7 @@ export async function fetchEnrichedPickupQueue(
         phone: person.phone,
         relationship: person.relationship,
         photo_url: person.photo_url,
-        is_active: person.is_active ?? true,
+        is_active: true,
       });
     }
 
@@ -58,9 +57,7 @@ export async function fetchEnrichedPickupQueue(
       .select(`
         id,
         student_id,
-        pickup_person_name,
-        pickup_person_phone,
-        relationship,
+        notes,
         status,
         created_at,
         student:students(
@@ -81,7 +78,19 @@ export async function fetchEnrichedPickupQueue(
     }
 
     // 3. Enrich the requests with matching photo URLs and list of authorized persons
-    const pickupQueue = (requests || []).map((req: any) => {
+    const pickupQueue = (requests || []).map((rawReq: any) => {
+      let req = { ...rawReq, pickup_person_name: '', pickup_person_phone: '', relationship: '' };
+      if (rawReq.notes) {
+        try {
+          const parsed = JSON.parse(rawReq.notes);
+          req.pickup_person_name = parsed.pickup_person_name || '';
+          req.pickup_person_phone = parsed.pickup_person_phone || '';
+          req.relationship = parsed.relationship || '';
+        } catch (e) {
+          // ignore
+        }
+      }
+
       const sid = req.student_id;
       const persons = pickup_persons_by_student[sid] || [];
       const matchedPhoto = matchPickupPhoto(req.pickup_person_name, req.pickup_person_phone, persons);

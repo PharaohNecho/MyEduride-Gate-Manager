@@ -38,7 +38,7 @@ export default function DashboardRouter() {
     const userRoles = [...new Set((session.roles || []).map((r: any) => r.role))] as string[];
     
     if (userRoles.length === 0) {
-      router.push('/dashboard/super-admin');
+      router.push('/auth/login');
       return;
     }
 

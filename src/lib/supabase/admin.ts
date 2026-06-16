@@ -15,6 +15,24 @@ export function isSupabaseConfigured(): boolean {
 
 export function getAdminClient() {
   if (!isSupabaseConfigured()) {
+    const createQueryBuilder = (mockData: any = []) => {
+      const builder: any = new Proxy(() => {}, {
+        get(target, prop) {
+          if (prop === 'then') {
+            return (onfulfilled: any) => {
+              return Promise.resolve(onfulfilled({ data: mockData, error: null }));
+            };
+          };
+          // Chain any of select, eq, in, order, maybeSingle, insert, update, split, etc.
+          return () => builder;
+        },
+        apply() {
+          return builder;
+        }
+      });
+      return builder;
+    };
+
     return new Proxy({} as any, {
       get(target, prop) {
         if (prop === 'auth') {
@@ -28,25 +46,7 @@ export function getAdminClient() {
             }
           };
         }
-        return () => ({
-          select: () => ({
-            eq: () => ({
-              eq: () => ({
-                single: async () => ({ data: null, error: null }),
-                order: async () => ({ data: [], error: null }),
-                maybeSingle: async () => ({ data: null, error: null }),
-              }),
-              single: async () => ({ data: null, error: null }),
-              order: async () => ({ data: [], error: null }),
-              maybeSingle: async () => ({ data: null, error: null }),
-            }),
-            order: async () => ({ data: [], error: null }),
-            maybeSingle: async () => ({ data: null, error: null }),
-          }),
-          insert: async () => ({ data: null, error: null }),
-          update: async () => ({ data: null, error: null }),
-          delete: async () => ({ data: null, error: null }),
-        });
+        return () => createQueryBuilder([]);
       },
     });
   }

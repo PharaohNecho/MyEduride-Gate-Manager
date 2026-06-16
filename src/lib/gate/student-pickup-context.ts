@@ -44,8 +44,7 @@ export async function loadPickupPersonsForStudent(
           name,
           phone,
           relationship,
-          photo_url,
-          is_active
+          photo_url
         )
       `)
       .eq('student_id', studentId);
@@ -66,7 +65,7 @@ export async function loadPickupPersonsForStudent(
           phone: p.phone,
           relationship: p.relationship,
           photo_url: p.photo_url,
-          is_active: p.is_active ?? true,
+          is_active: true,
         };
       })
       .filter(Boolean) as PickupPersonRow[];

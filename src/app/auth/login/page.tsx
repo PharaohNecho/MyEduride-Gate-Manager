@@ -252,7 +252,6 @@ export default function LoginPage() {
                   />
                 </div>
                 <div className="leading-tight">
-                  <span className="text-[10px] font-black tracking-wider text-[#0e4827] uppercase select-none">Gate Terminal</span>
                   {schoolBranding?.name ? (
                     <h2 className="text-xs font-extrabold text-slate-800 line-clamp-1">{schoolBranding.name}</h2>
                   ) : (

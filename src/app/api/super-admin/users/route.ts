@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase/admin';
 import { getSessionFromRequest, sessionHasRole } from '@/lib/session';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 type ListedUser = {
   id: string;
   username: string;

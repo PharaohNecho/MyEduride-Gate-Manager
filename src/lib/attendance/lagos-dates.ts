@@ -65,6 +65,10 @@ export function resolveLagosReportRange(
 
     startDateStr = firstDay.toISOString().split('T')[0];
     endDateStr = lastDay.toISOString().split('T')[0];
+  } else if (reportType === 'history' || reportType === 'all') {
+    // Start of the calendar year to capture full database history
+    startDateStr = `${new Date(dateParam).getFullYear()}-01-01`;
+    endDateStr = dateParam;
   }
 
   const { startIso: rangeStartIso } = lagosDayBoundsFromDateStr(startDateStr);
