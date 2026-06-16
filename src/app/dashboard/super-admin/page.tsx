@@ -65,6 +65,53 @@ export default function SuperAdminDashboard() {
   // Sidebar controls
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
 
+  // Password modification state
+  const [pwdNew, setPwdNew] = useState('');
+  const [pwdConfirm, setPwdConfirm] = useState('');
+  const [pwdLoading, setPwdLoading] = useState(false);
+  const [pwdError, setPwdError] = useState('');
+  const [pwdSuccess, setPwdSuccess] = useState('');
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pwdNew.trim()) {
+      setPwdError('New password is required');
+      return;
+    }
+    if (pwdNew !== pwdConfirm) {
+      setPwdError('Passwords do not match');
+      return;
+    }
+    setPwdLoading(true);
+    setPwdError('');
+    setPwdSuccess('');
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session) {
+        headers['x-myeduride-session'] = encodeURIComponent(JSON.stringify(session));
+      }
+      const response = await fetch('/api/school-admin/users/set-password', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          user_id: session?.user_id,
+          password: pwdNew,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update password');
+      }
+      setPwdSuccess('Password security lock updated successfully!');
+      setPwdNew('');
+      setPwdConfirm('');
+    } catch (err: any) {
+      setPwdError(err.message || 'Error occurred updating password');
+    } finally {
+      setPwdLoading(false);
+    }
+  };
+
   // Default baseline data matching screenshot exactly
   const defaultSchoolsData = [
     { id: 'sch-1', name: 'CANAAN GATE SCHOOLS', address: '24,Bammeke Road,Shasha,Akowonjo, Lagos', student_count: 1, staff_count: 3, logo_url: null, welcome_message: 'Welcome to Canaan Gate - Enforcing Safety', primary_color: '#059669', campus_status: 'Active' },
@@ -2281,7 +2328,6 @@ export default function SuperAdminDashboard() {
                   <p className="text-[10px] text-slate-400 mt-2 leading-relaxed font-semibold">
                     Daily files use calendar midnight–midnight. Live dashboards reset Present/In 12 hours after each scan.
                   </p>
-
                 </div>
               </motion.div>
             )}
@@ -2294,78 +2340,123 @@ export default function SuperAdminDashboard() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 15 }}
                 transition={{ duration: 0.15 }}
-                className="max-w-xl mx-auto"
+                className="w-full"
               >
-                <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
-                  <div className="p-6 bg-slate-50 border-b border-slate-100 flex items-center gap-4 select-none text-left">
-                    <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-[#1e3a8a] to-[#3b82f6] text-white font-extrabold text-xl flex items-center justify-center shadow-md shrink-0">
-                      {initials}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Left columns (Profile Settings) */}
+                  <div className="md:col-span-2 bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+                    <div className="p-6 bg-slate-50 border-b border-slate-100 flex items-center gap-4 select-none text-left">
+                      <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-[#1e3a8a] to-[#3b82f6] text-white font-extrabold text-xl flex items-center justify-center shadow-md shrink-0">
+                        {initials}
+                      </div>
+                      <div>
+                        <h3 className="font-black text-sm uppercase text-slate-900 leading-none font-sans">Super Admin Settings</h3>
+                        <p className="text-[10.5px] text-slate-500 mt-1 leading-normal font-medium">Modify credentials, system email, and supervisor level parameters</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-black text-sm uppercase text-slate-900 leading-none">Super Admin Settings</h3>
-                      <p className="text-[10.5px] text-slate-500 mt-1 leading-normal font-medium">Modify credentials, system email, and supervisor level parameters</p>
-                    </div>
+
+                    <form onSubmit={handleSaveProfile} className="p-6 space-y-4">
+                      {profileSuccess && (
+                        <div className="bg-blue-50 border border-blue-200 text-blue-800 p-3.5 rounded-2xl flex items-start gap-2.5 text-xs font-black uppercase tracking-wide">
+                          <CheckCircle2 size={16} className="shrink-0 text-blue-600 mt-0.5" />
+                          <span>{profileSuccess}</span>
+                        </div>
+                      )}
+
+                      {profileError && (
+                        <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3.5 rounded-2xl flex items-start gap-2.5 text-xs font-black uppercase tracking-wide">
+                          <AlertCircle size={16} className="shrink-0 text-rose-600 mt-0.5" />
+                          <span>{profileError}</span>
+                        </div>
+                      )}
+
+                      <div className="space-y-3.5 text-left">
+                        <div>
+                          <label className="text-[10px] uppercase font-extrabold text-slate-400 block mb-1">Supervisor Full Name</label>
+                          <input
+                            type="text"
+                            required
+                            value={userName}
+                            onChange={(e) => setUserName(e.target.value)}
+                            className="w-full px-4 py-2 border border-slate-200 bg-slate-50 text-xs rounded-xl focus:outline-none focus:border-slate-400 focus:bg-white text-slate-800 font-bold font-sans"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] uppercase font-extrabold text-slate-400 block mb-1">Supervisor Corporate Username</label>
+                          <input
+                            type="text"
+                            required
+                            value={userUsername}
+                            onChange={(e) => setUserUsername(e.target.value.toLowerCase().trim())}
+                            className="w-full px-4 py-2 border border-slate-200 bg-slate-50 text-xs rounded-xl focus:outline-none focus:border-slate-400 focus:bg-white text-slate-800 font-bold font-mono"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] uppercase font-extrabold text-slate-400 block mb-1">Admin E-mail Address</label>
+                          <input
+                            type="email"
+                            required
+                            value={userEmail}
+                            onChange={(e) => setUserEmail(e.target.value)}
+                            className="w-full px-4 py-2 border border-slate-200 bg-slate-50 text-xs rounded-xl focus:outline-none focus:border-slate-400 focus:bg-white text-slate-800 font-medium font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-100 flex justify-end">
+                        <button
+                          type="submit"
+                          className="px-5 py-2.5 bg-[#1e40af] hover:bg-[#1e3a8a] hover:shadow-md text-white border-none font-bold uppercase text-xs rounded-xl cursor-pointer transition-all active:scale-98"
+                        >
+                          Save Profile Settings
+                        </button>
+                      </div>
+                    </form>
                   </div>
 
-                  <form onSubmit={handleSaveProfile} className="p-6 space-y-4">
-                    {profileSuccess && (
-                      <div className="bg-blue-50 border border-blue-200 text-blue-800 p-3.5 rounded-2xl flex items-start gap-2.5 text-xs font-black uppercase tracking-wide">
-                        <CheckCircle2 size={16} className="shrink-0 text-blue-600 mt-0.5" />
-                        <span>{profileSuccess}</span>
-                      </div>
-                    )}
-
-                    {profileError && (
-                      <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3.5 rounded-2xl flex items-start gap-2.5 text-xs font-black uppercase tracking-wide">
-                        <AlertCircle size={16} className="shrink-0 text-rose-600 mt-0.5" />
-                        <span>{profileError}</span>
-                      </div>
-                    )}
-
-                    <div className="space-y-3.5">
-                      <div>
-                        <label className="text-[10px] uppercase font-extrabold text-slate-400 block mb-1">Supervisor Full Name</label>
+                  {/* Reset Password Form Directly Inside Profile View */}
+                  <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs text-left space-y-4 h-fit">
+                    <legend className="font-extrabold text-slate-800 text-xs tracking-wider uppercase mb-2 border-b border-slate-50 pb-2">Change Admin Security Password</legend>
+                    <p className="text-[11px] text-slate-400 mt-1 leading-normal font-sans">
+                      Update your corporate master credentials. Ensure to use a highly unique passcode link.
+                    </p>
+                    <form onSubmit={handleUpdatePassword} className="space-y-4">
+                      {pwdError && <div className="p-3 text-xs bg-red-50 text-red-700 rounded-xl font-bold">{pwdError}</div>}
+                      {pwdSuccess && <div className="p-3 text-xs bg-emerald-50 text-emerald-800 rounded-xl font-bold">{pwdSuccess}</div>}
+                      
+                      <div className="space-y-1 text-left">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">New Security Password</label>
                         <input
-                          type="text"
-                          required
-                          value={userName}
-                          onChange={(e) => setUserName(e.target.value)}
-                          className="w-full px-4 py-2 border border-slate-200 bg-slate-50 text-xs rounded-xl focus:outline-none focus:border-slate-400 focus:bg-white text-slate-800 font-bold"
+                          type="password"
+                          value={pwdNew}
+                          onChange={(e) => setPwdNew(e.target.value)}
+                          placeholder="Minimum 6 characters"
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-[#1e40af]/30 min-h-[44px]"
                         />
                       </div>
 
-                      <div>
-                        <label className="text-[10px] uppercase font-extrabold text-slate-400 block mb-1">Supervisor Corporate Username</label>
+                      <div className="space-y-1 text-left">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">Confirm Password Link</label>
                         <input
-                          type="text"
-                          required
-                          value={userUsername}
-                          onChange={(e) => setUserUsername(e.target.value.toLowerCase().trim())}
-                          className="w-full px-4 py-2 border border-slate-200 bg-slate-50 text-xs rounded-xl focus:outline-none focus:border-slate-400 focus:bg-white text-slate-800 font-bold font-mono"
+                          type="password"
+                          value={pwdConfirm}
+                          onChange={(e) => setPwdConfirm(e.target.value)}
+                          placeholder="Confirm security password"
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-[#1e40af]/30 min-h-[44px]"
                         />
                       </div>
 
-                      <div>
-                        <label className="text-[10px] uppercase font-extrabold text-slate-400 block mb-1">Admin E-mail Address</label>
-                        <input
-                          type="email"
-                          required
-                          value={userEmail}
-                          onChange={(e) => setUserEmail(e.target.value)}
-                          className="w-full px-4 py-2 border border-slate-200 bg-slate-50 text-xs rounded-xl focus:outline-none focus:border-slate-400 focus:bg-white text-slate-800 font-medium font-mono"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="pt-4 border-t border-slate-100 flex justify-end">
                       <button
                         type="submit"
-                        className="px-5 py-2.5 bg-[#1e40af] hover:bg-[#1e3a8a] hover:shadow-md text-white border-none font-bold uppercase text-xs rounded-xl cursor-pointer transition-all active:scale-98"
+                        disabled={pwdLoading}
+                        className="w-full py-2.5 bg-[#1e40af] hover:bg-[#1e3a8a] text-white font-extrabold text-xs rounded-xl shadow-xs cursor-pointer min-h-[44px] border-none"
                       >
-                        Save Profile Settings
+                        {pwdLoading ? 'Saving lock...' : 'Update Master Password'}
                       </button>
-                    </div>
-                  </form>
+                    </form>
+                  </div>
                 </div>
               </motion.div>
             )}

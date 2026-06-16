@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { getSession } from '@/lib/api';
 import { Shield, GraduationCap, Users, DoorOpen, User, ArrowRight } from 'lucide-react';
 
+import MyEduRideLoader from '@/components/shared/MyEduRideLoader';
+
 const LOGO_URL = 'https://www.image2url.com/r2/default/images/1779230378321-292c7b74-6217-41ff-832a-180a535ea4cb.png';
 
 const ROLE_CONFIG = {
@@ -56,7 +58,7 @@ export default function DashboardRouter() {
   }, []);
 
   if (!mounted || roles.length === 0) {
-    return <div className="min-h-screen flex items-center justify-center"><div className="animate-pulse text-primary-600">Loading...</div></div>;
+    return <MyEduRideLoader />;
   }
 
   return (

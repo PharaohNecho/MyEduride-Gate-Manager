@@ -37,10 +37,10 @@ export default function SchoolAdminDashboard() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Collapsible accordion selectors corresponding to screenshot
-  const [studentsOpen, setStudentsOpen] = useState(true);
-  const [staffOpen, setStaffOpen] = useState(true);
-  const [parentsOpen, setParentsOpen] = useState(true);
-  const [reportsOpen, setReportsOpen] = useState(true);
+  const [studentsOpen, setStudentsOpen] = useState(false);
+  const [staffOpen, setStaffOpen] = useState(false);
+  const [parentsOpen, setParentsOpen] = useState(false);
+  const [reportsOpen, setReportsOpen] = useState(false);
 
   // Dynamic lists for robust interactions
   const [students, setStudents] = useState([
@@ -614,20 +614,7 @@ export default function SchoolAdminDashboard() {
               )}
             </div>
 
-            {/* 6. Passwords (Direct Item) */}
-            <button
-              onClick={() => setActiveTab('passwords')}
-              className={`w-full p-3 rounded-xl flex items-center gap-3 font-bold text-xs transition-all cursor-pointer hover:bg-slate-800/50 hover:text-white border-none text-left ${
-                activeTab === 'passwords' 
-                  ? 'bg-slate-800 text-emerald-400 shadow-sm border-l-4 border-emerald-500 rounded-l-none' 
-                  : 'text-slate-400'
-              }`}
-            >
-              <KeyRound size={16} className={activeTab === 'passwords' ? 'text-emerald-400' : ''} />
-              <span className={`transition-opacity duration-300 ${isSidebarExpanded ? 'opacity-100' : 'opacity-0 md:hidden'}`}>
-                Passwords
-              </span>
-            </button>
+
 
             {/* 7. Classes (Direct Item) */}
             <button
@@ -958,6 +945,15 @@ export default function SchoolAdminDashboard() {
                 </div>
               )}
             </div>
+
+            {/* Sign Out beside the Profile at the top right */}
+            <button
+              onClick={logout}
+              className="p-2.5 rounded-xl bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-500 hover:border-rose-200 border border-slate-100 shadow-xs transition cursor-pointer flex items-center justify-center min-w-[38px] min-h-[38px]"
+              title="Sign out of Portal"
+            >
+              <LogOut size={16} />
+            </button>
 
             {/* User credentials profile badge */}
             <button 
@@ -3080,55 +3076,57 @@ export default function SchoolAdminDashboard() {
                 </form>
               </div>
 
-              {/* Identity lock and Logouts */}
-              <div className="bg-slate-50/50 rounded-3xl border border-slate-200/40 p-6 flex flex-col justify-between hover:border-[#1e3a8a]/10 transition-colors text-left">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center">
-                      <ShieldAlert size={20} />
-                    </div>
-                    <div>
-                      <h4 className="font-extrabold text-slate-800 text-xs uppercase leading-none">Security Station</h4>
-                      <p className="text-[9px] text-slate-400 font-bold uppercase mt-1 leading-none">Authorized Node Locks</p>
-                    </div>
+              {/* Reset self password card directly inside profile tab */}
+              <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-xs text-left space-y-4">
+                <legend className="font-extrabold text-slate-800 text-xs tracking-wider uppercase mb-2 border-b border-slate-50 pb-2">Change Admin Security Password</legend>
+                <p className="text-[11px] text-slate-400 mt-1 leading-normal">
+                  Update your administrative gateway lock and security credentials. Keep this safe and secure.
+                </p>
+                <form onSubmit={handleUpdatePassword} className="space-y-4">
+                  {pwdError && <div className="p-3 text-xs bg-red-50 text-red-700 rounded-xl font-bold">{pwdError}</div>}
+                  {pwdSuccess && <div className="p-3 text-xs bg-emerald-50 text-emerald-800 rounded-xl font-bold">{pwdSuccess}</div>}
+                  
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">New Security Password</label>
+                    <input
+                      type="password"
+                      value={pwdNew}
+                      onChange={(e) => setPwdNew(e.target.value)}
+                      placeholder="Minimum 6 characters"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-[#1e40af]/30 min-h-[44px]"
+                    />
                   </div>
 
-                  <hr className="border-slate-200/50" />
-
-                  <div className="space-y-2 text-xs font-semibold">
-                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Access Rights Overview</p>
-                    <div className="flex items-center gap-1.5 text-[#1a2238] bg-white p-2.5 rounded-xl border border-slate-200/30">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                      <span>Gate Reader override active</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-[#1a2238] bg-white p-2.5 rounded-xl border border-slate-200/30">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                      <span>Parent verification keys signed</span>
-                    </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">Confirm Password Link</label>
+                    <input
+                      type="password"
+                      value={pwdConfirm}
+                      onChange={(e) => setPwdConfirm(e.target.value)}
+                      placeholder="Confirm security password"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-[#1e40af]/30 min-h-[44px]"
+                    />
                   </div>
-                </div>
 
-                <div className="pt-6 border-t border-slate-200/60 mt-6 space-y-3">
-                  <button 
-                    onClick={() => {
-                      // Navigate directly to the password alteration tab inside
-                      setActiveTab('passwords');
-                      setToastText("Switched to credentials sync");
-                      setTimeout(() => setToastText(''), 1500);
-                    }}
-                    className="w-full py-2.5 bg-white hover:bg-slate-100 text-slate-700 font-extrabold text-xs rounded-xl flex items-center justify-center gap-1 cursor-pointer transition-colors border border-slate-200 min-h-[44px]"
+                  <button
+                    type="submit"
+                    disabled={pwdLoading}
+                    className="w-full py-2.5 bg-[#1e40af] hover:bg-[#1e3a8a] text-white font-extrabold text-xs rounded-xl shadow-xs cursor-pointer min-h-[44px] border-none"
                   >
-                    <Lock size={12} />
-                    Change Admin Password Key
+                    {pwdLoading ? 'Saving lock...' : 'Update Administrative Password'}
                   </button>
+                </form>
 
-                  <button 
-                    onClick={logout}
-                    className="w-full py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-xs rounded-xl flex items-center justify-center gap-1 cursor-pointer transition-colors border border-rose-100 min-h-[44px]"
-                  >
-                    <LogOut size={12} />
-                    Revoke Server Session Key
-                  </button>
+                <div className="pt-4 border-t border-slate-100 space-y-2 text-xs font-semibold">
+                  <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Access Rights Overview</p>
+                  <div className="flex items-center gap-1.5 text-[#1a2238] bg-slate-50 p-2 rounded-lg border border-slate-200/30 text-[10px]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
+                    <span>Gate Reader override active</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[#1a2238] bg-slate-50 p-2 rounded-lg border border-slate-200/30 text-[10px]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
+                    <span>Parent verification keys signed</span>
+                  </div>
                 </div>
               </div>
 

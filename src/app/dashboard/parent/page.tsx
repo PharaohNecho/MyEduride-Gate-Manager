@@ -8,6 +8,7 @@ import { isSupabaseConfigured, createClient } from '@/lib/supabase/client';
 import { todayInLagos, formatTimeLagos } from '@/lib/timezone';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
+  User,
   Users, 
   Calendar, 
   Car, 
@@ -35,6 +36,7 @@ const TABS = [
   { id: 'history', label: 'History', icon: Calendar, description: 'Track check-in and check-out logs' },
   { id: 'pickup', label: 'Pickup', icon: Car, description: 'Authorize pickup guardians on-the-fly' },
   { id: 'alerts', label: 'Alerts', icon: Bell, description: 'Live notifications and gate dispatch alerts' },
+  { id: 'profile', label: 'Profile Settings', icon: User, description: 'Manage security credentials and lock passcodes' },
 ];
 
 const DEFAULT_SANDBOX_KIDS = [
@@ -74,6 +76,86 @@ export default function ParentDashboard() {
   const [parentName, setParentName] = useState('doe');
   const [isDbConnected, setIsDbConnected] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Profile management states
+  const [session, setSession] = useState<any>(null);
+  const [pwdNew, setPwdNew] = useState('');
+  const [pwdConfirm, setPwdConfirm] = useState('');
+  const [pwdLoading, setPwdLoading] = useState(false);
+  const [pwdError, setPwdError] = useState('');
+  const [pwdSuccess, setPwdSuccess] = useState('');
+  const [profileSuccess, setProfileSuccess] = useState('');
+  const [profileError, setProfileError] = useState('');
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProfileSuccess('');
+    setProfileError('');
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session) {
+        headers['x-myeduride-session'] = encodeURIComponent(JSON.stringify(session));
+      }
+      const response = await fetch('/api/school-admin/users/update', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          user_id: session?.user_id,
+          full_name: parentName,
+          email: session?.email,
+          username: session?.username
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Failed to update identity parameters.');
+      setProfileSuccess('Profile parameters synced successfully.');
+      const updated = { ...session, full_name: parentName };
+      localStorage.setItem('myeduride_session', JSON.stringify(updated));
+      setSession(updated);
+    } catch (err: any) {
+      setProfileError(err.message || 'Error occurred.');
+    }
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pwdNew.trim()) {
+      setPwdError('New password is required');
+      return;
+    }
+    if (pwdNew !== pwdConfirm) {
+      setPwdError('Passwords do not match');
+      return;
+    }
+    setPwdLoading(true);
+    setPwdError('');
+    setPwdSuccess('');
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session) {
+        headers['x-myeduride-session'] = encodeURIComponent(JSON.stringify(session));
+      }
+      const response = await fetch('/api/school-admin/users/set-password', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          user_id: session?.user_id,
+          password: pwdNew,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update password');
+      }
+      setPwdSuccess('Password security lock updated successfully!');
+      setPwdNew('');
+      setPwdConfirm('');
+    } catch (err: any) {
+      setPwdError(err.message || 'Error occurred updating password');
+    } finally {
+      setPwdLoading(false);
+    }
+  };
 
   // History Tab States
   const [historyFilter, setHistoryFilter] = useState('Daily');
@@ -184,6 +266,7 @@ export default function ParentDashboard() {
       router.push('/auth/login');
       return;
     }
+    setSession(session);
     setParentName(session.full_name || 'doe');
 
     const connected = isSupabaseConfigured();
@@ -869,8 +952,30 @@ export default function ParentDashboard() {
                   {TABS.find(t => t.id === activeTab)?.description}
                 </p>
               </div>
-              <div className="text-xs text-slate-400 font-bold bg-white px-3 py-1.5 rounded-xl border border-slate-200/50 shadow-3xs">
-                LAGOS WAT TIME: {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+              <div className="flex items-center gap-3.5">
+                {/* Profile Badge Link */}
+                <div 
+                  onClick={() => setActiveTab('profile')}
+                  className="flex items-center gap-2.5 bg-slate-50/70 border border-slate-200/50 rounded-xl px-3 py-1.8 cursor-pointer hover:bg-slate-100/70 transition-all shadow-3xs hover:border-slate-300"
+                  title="Account Settings & Reset Password"
+                >
+                  <div className="w-6.5 h-6.5 rounded-full bg-emerald-600 text-white font-extrabold text-[10px] flex items-center justify-center uppercase shrink-0">
+                    {parentInitials}
+                  </div>
+                  <div className="text-left hidden lg:block select-none max-w-[120px]">
+                    <h4 className="text-[10.5px] font-black text-slate-800 leading-none truncate">{parentName}</h4>
+                    <span className="text-[8px] text-emerald-600 uppercase tracking-widest font-extrabold block mt-0.5 leading-none">Parent/Guardian</span>
+                  </div>
+                </div>
+
+                {/* Sign Out Button (BESIDE the profile at the top right!) */}
+                <button
+                  onClick={logout}
+                  className="px-3.5 py-1.8 hover:bg-rose-50 border border-slate-200/50 hover:border-rose-200 text-slate-600 hover:text-rose-600 rounded-xl text-[10.5px] font-black uppercase flex items-center gap-1.5 transition-all shadow-3xs cursor-pointer min-h-[38px] bg-white text-center"
+                >
+                  <LogOut size={13} />
+                  <span>Exit Session</span>
+                </button>
               </div>
             </div>
           </div>
@@ -1485,6 +1590,109 @@ export default function ParentDashboard() {
                         </div>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* ---------------------------------- */}
+                {/* TAB 5: PROFILE SETTINGS */}
+                {/* ---------------------------------- */}
+                {activeTab === 'profile' && (
+                  <div className="space-y-6 text-left" id="view-profile">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      
+                      {/* Profile details editor */}
+                      <div className="md:col-span-2 bg-white rounded-3xl border border-slate-100 p-6 shadow-3xs space-y-4 text-left">
+                        <legend className="font-extrabold text-slate-800 text-xs tracking-wider uppercase mb-2 border-b border-slate-50 pb-2 font-sans">Modify Guardian Identity Details</legend>
+                        <form onSubmit={handleSaveProfile} className="space-y-4">
+                          {profileSuccess && <div className="p-3 text-xs bg-emerald-50 text-emerald-800 rounded-xl font-bold font-sans">{profileSuccess}</div>}
+                          {profileError && <div className="p-3 text-xs bg-red-50 text-red-700 rounded-xl font-bold font-sans">{profileError}</div>}
+                          
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase">Guardian Full Name</label>
+                              <input
+                                type="text"
+                                value={parentName}
+                                onChange={(e) => setParentName(e.target.value)}
+                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-emerald-500/30 min-h-[44px]"
+                              />
+                            </div>
+                            
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase">Portal Username</label>
+                              <input
+                                type="text"
+                                readOnly
+                                value={session?.username || ''}
+                                className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-500 focus:outline-none min-h-[44px] cursor-not-allowed font-mono"
+                              />
+                            </div>
+
+                            <div className="space-y-1 sm:col-span-2">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase">Email Address</label>
+                              <input
+                                type="email"
+                                readOnly
+                                value={session?.email || ''}
+                                className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-500 focus:outline-none min-h-[44px] cursor-not-allowed"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="pt-2 flex justify-end">
+                            <button
+                              type="submit"
+                              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-3xs cursor-pointer border-none min-h-[44px]"
+                            >
+                              Save Profile & Identity
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+
+                      {/* Reset self password card */}
+                      <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-3xs text-left space-y-4">
+                        <legend className="font-extrabold text-slate-800 text-xs tracking-wider uppercase mb-2 border-b border-slate-50 pb-2 font-sans">Change Guardian Security Password</legend>
+                        <p className="text-[11px] text-slate-400 mt-1 leading-normal font-sans">
+                          Update your authorized parent credentials. Keep this gateway passcode safe and unique.
+                        </p>
+                        <form onSubmit={handleUpdatePassword} className="space-y-4">
+                          {pwdError && <div className="p-3 text-xs bg-red-50 text-red-700 rounded-xl font-bold font-sans">{pwdError}</div>}
+                          {pwdSuccess && <div className="p-3 text-xs bg-emerald-50 text-emerald-800 rounded-xl font-bold font-sans">{pwdSuccess}</div>}
+                          
+                          <div className="space-y-1 text-left">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase">New Security Password</label>
+                            <input
+                              type="password"
+                              value={pwdNew}
+                              onChange={(e) => setPwdNew(e.target.value)}
+                              placeholder="Minimum 6 characters"
+                              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-emerald-500/30 min-h-[44px]"
+                            />
+                          </div>
+
+                          <div className="space-y-1 text-left">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase">Confirm Password Link</label>
+                            <input
+                              type="password"
+                              value={pwdConfirm}
+                              onChange={(e) => setPwdConfirm(e.target.value)}
+                              placeholder="Confirm security password"
+                              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-emerald-500/30 min-h-[44px]"
+                            />
+                          </div>
+
+                          <button
+                            type="submit"
+                            disabled={pwdLoading}
+                            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-3xs cursor-pointer min-h-[44px] border-none animate-none"
+                          >
+                            {pwdLoading ? 'Saving lock...' : 'Update Guardian Password'}
+                          </button>
+                        </form>
+                      </div>
+
+                    </div>
                   </div>
                 )}
 

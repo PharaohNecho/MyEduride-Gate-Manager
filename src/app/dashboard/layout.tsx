@@ -110,28 +110,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       )}
 
-      <div className="fixed top-3 right-3 z-30 flex items-center gap-1">
+      <div className="fixed top-3 right-3 z-30 flex items-center gap-1 bg-white/90 shadow-sm border border-slate-100 p-1 rounded-2xl">
         <RoleSwitcher showLogout={false} />
-        <button
-          type="button"
-          onClick={() => setShowAccount(true)}
-          className="p-2 rounded-full bg-white border shadow-sm text-gray-500 hover:text-primary-700 hover:border-primary-100"
-          title="Account settings"
-          aria-label="Account settings"
-        >
-          <KeyRound size={18} />
-        </button>
-        {!isSchoolAdmin && !isParent && (
-          <button
-            type="button"
-            onClick={logout}
-            className="p-2 rounded-full bg-white border shadow-sm text-gray-500 hover:text-red-600 hover:border-red-100"
-            title="Sign out"
-            aria-label="Sign out"
-          >
-            <LogOut size={18} />
-          </button>
-        )}
       </div>
 
       {showAccount && (
