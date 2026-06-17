@@ -22,7 +22,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, []);
 
   return (
-    <div className="min-h-screen bg-transparent flex flex-col">
+    <div className="min-h-screen md:h-screen md:overflow-hidden bg-transparent flex flex-col">
       <SessionIdleGuard />
       
       {!configured && (
@@ -130,7 +130,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       )}
 
-      <div className="flex-1">
+      <div className="flex-1 min-h-0 md:h-full md:overflow-hidden flex flex-col">
         {children}
       </div>
     </div>

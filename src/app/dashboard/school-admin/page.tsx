@@ -915,10 +915,10 @@ export default function SchoolAdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-tr from-[#eef4ff] via-[#f8fafc] to-[#FFFFFF] flex text-slate-800 font-sans selection:bg-[#fbbf24]/20 selection:text-[#1e3a8a] relative">
+    <div className="w-full h-full md:h-full md:overflow-hidden bg-gradient-to-tr from-[#eef4ff] via-[#f8fafc] to-[#FFFFFF] flex text-slate-800 font-sans selection:bg-[#fbbf24]/20 selection:text-[#1e3a8a] relative">
       
       {/* Sidebar Navigation - Desktop only, hidden on mobile */}
-      <aside className={`hidden md:flex bg-white text-slate-500 shrink-0 transition-all duration-300 z-50 flex-col justify-between border-r border-slate-100 relative shadow-sm h-screen sticky top-0 py-6 select-none overflow-y-auto custom-scrollbar ${
+      <aside className={`hidden md:flex bg-white text-slate-500 shrink-0 transition-all duration-300 z-50 flex-col justify-between border-r border-slate-100 relative shadow-sm h-full py-6 select-none overflow-y-auto custom-scrollbar ${
         isSidebarExpanded ? 'w-64' : 'w-20'
       }`}>
         {/* Sidebar Header */}
@@ -1378,7 +1378,7 @@ export default function SchoolAdminDashboard() {
       </div>
 
       {/* Main Content Pane */}
-      <div className="flex-1 min-w-0 flex flex-col relative pb-24 md:pb-6">
+      <div className="flex-1 min-w-0 flex flex-col relative pb-24 md:pb-6 md:h-full md:overflow-y-auto">
         
         {/* Header Row */}
         <header className="bg-white/80 backdrop-blur-md sticky top-0 border-b border-slate-100 z-40 px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
@@ -1474,7 +1474,7 @@ export default function SchoolAdminDashboard() {
         </header>
 
         {/* Dynamic Inner Tab Router Section */}
-        <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 space-y-8 animate-in fade-in duration-200">
+        <main className="flex-1 max-w-full w-full px-4 sm:px-6 lg:px-8 py-6 space-y-8 animate-in fade-in duration-200">
           
           {activeTab === 'dashboard' && (
             <>

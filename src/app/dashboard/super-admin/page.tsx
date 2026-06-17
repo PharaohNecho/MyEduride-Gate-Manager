@@ -305,8 +305,13 @@ export default function SuperAdminDashboard() {
 
   // Auto-updating active designer values when selection switches
   const getSelectedPersonObj = () => {
-    const list = selectedCardTab === 'students' ? idCardsStudents : idCardsStaff;
-    return list.find(p => p.id === selectedPersonId) || list[0] || defaultIDCardsStudents[2];
+    const primaryList = selectedCardTab === 'students' ? idCardsStudents : idCardsStaff;
+    let found = primaryList.find(p => p.id === selectedPersonId);
+    if (!found) {
+      const secondaryList = selectedCardTab === 'students' ? idCardsStaff : idCardsStudents;
+      found = secondaryList.find(p => p.id === selectedPersonId);
+    }
+    return found || primaryList[0] || idCardsStudents[0];
   };
 
   const selectedPerson = getSelectedPersonObj();
@@ -324,7 +329,7 @@ export default function SuperAdminDashboard() {
           console.error('[QR] failed:', err);
         });
     });
-  }, [selectedPersonId, selectedCardTab]);
+  }, [selectedPersonId, selectedCardTab, selectedPerson?.idNo, selectedPerson?.schoolName]);
 
   // Sync designer colors and names when selected student change
   useEffect(() => {
@@ -378,6 +383,54 @@ export default function SuperAdminDashboard() {
       setToastText('');
     }, 3500);
   };
+
+  // Secure dynamic generator helper for one-time unique RFID IDs
+  const generateSecureID = (type: 'Student' | 'Staff', name: string) => {
+    const prefix = type === 'Student' ? 'STU' : 'STF';
+    const randNum = Math.floor(1000 + Math.random() * 9000);
+    const initials = name
+      .toUpperCase()
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .replace(/[^A-Z]/g, 'G');
+    const randHash = Math.random().toString(36).substring(2, 6).toUpperCase();
+    return `${prefix}-${randNum}-${initials || 'ID'}${randHash}`;
+  };
+
+  // Perform one-time auto generation of secure RFID/QR code numbers for all dummy placeholders on mount
+  useEffect(() => {
+    let updatedStudents = false;
+    const nextStus = idCardsStudents.map(student => {
+      if (student.idNo === '123-456-7890' || !student.idNo) {
+        updatedStudents = true;
+        return {
+          ...student,
+          idNo: generateSecureID('Student', student.name)
+        };
+      }
+      return student;
+    });
+
+    let updatedStaff = false;
+    const nextStaff = idCardsStaff.map(stf => {
+      if (stf.idNo === '123-456-7890' || !stf.idNo) {
+        updatedStaff = true;
+        return {
+          ...stf,
+          idNo: generateSecureID('Staff', stf.name)
+        };
+      }
+      return stf;
+    });
+
+    if (updatedStudents) {
+      setIdCardsStudents(nextStus);
+    }
+    if (updatedStaff) {
+      setIdCardsStaff(nextStaff);
+    }
+  }, []);
 
   // Dynamic UI Scaling for optimal scale-to-fit screen previews
   const [uiScale, setUiScale] = useState<number>(1);
@@ -824,13 +877,6 @@ export default function SuperAdminDashboard() {
 
   return (
     <div 
-      style={{
-        transform: `scale(${uiScale})`,
-        transformOrigin: 'top left',
-        width: `${100 / uiScale}%`,
-        minHeight: `${100 / uiScale}vh`,
-        transition: 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), width 0.22s, min-height 0.22s',
-      }}
       className="min-h-screen bg-gradient-to-tr from-[#eef4ff] via-[#f8fafc] to-[#FFFFFF] flex text-slate-800 font-sans selection:bg-[#fbbf24]/20 selection:text-[#1e3a8a] relative overflow-x-hidden"
     >
       
@@ -952,26 +998,6 @@ export default function SuperAdminDashboard() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Dynamic Viewport Scale for UI/UX Review processes */}
-            <div className="flex items-center gap-1.5 bg-slate-50 p-1 rounded-xl border border-slate-200/50 mr-2 select-none">
-              <span className="hidden xl:block text-[8.5px] font-black uppercase text-slate-400 tracking-wider pl-2 pr-1">UI Scale:</span>
-              {[0.75, 0.85, 0.95, 1.0].map((scaleVal) => (
-                <button
-                  key={scaleVal}
-                  type="button"
-                  onClick={() => handleScaleChange(scaleVal)}
-                  className={`px-2 py-1 text-[10px] font-black rounded-lg transition-all border-none cursor-pointer ${
-                    uiScale === scaleVal 
-                      ? 'bg-gradient-to-tr from-[#1e40af] to-[#3b82f6] text-white shadow-xs' 
-                      : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100 bg-transparent'
-                  }`}
-                  title={`Zoom scale to ${Math.round(scaleVal * 100)}%`}
-                >
-                  {Math.round(scaleVal * 100)}%
-                </button>
-              ))}
-            </div>
-
             {/* Key switcher icon */}
             <button
               onClick={() => {
@@ -1566,189 +1592,229 @@ export default function SuperAdminDashboard() {
                     >
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                       <span>Download PDF ({Object.values(selectedCheckboxes).filter(Boolean).length})</span>
+                      {/* Custom print styling injection block */}
+                <style dangerouslySetInnerHTML={{ __html: `
+                  @media print {
+                    body * {
+                      visibility: hidden !important;
+                    }
+                    #id-card-render-container, #id-card-render-container * {
+                      visibility: visible !important;
+                    }
+                    #id-card-render-container {
+                      position: absolute !important;
+                      left: 50% !important;
+                      top: 50% !important;
+                      transform: translate(-50%, -50%) !important;
+                      width: 100vw !important;
+                      display: flex !important;
+                      flex-direction: column !important;
+                      align-items: center !important;
+                      justify-content: center !important;
+                      gap: 40px !important;
+                    }
+                    @page {
+                      margin: 0;
+                    }
+                  }
+                ` }} />
                     </button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-                  
-                  {/* Left Column (xl:col-span-4): Students & Staff Selection Log */}
-                  <div className="xl:col-span-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col">
-                    {/* Log tab selector students/staff */}
-                    <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                      <div className="flex gap-1.5 bg-slate-200 p-1 rounded-xl">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedCardTab('students');
-                            const firstStu = idCardsStudents[0];
-                            if (firstStu) setSelectedPersonId(firstStu.id);
-                          }}
-                          className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all border-none cursor-pointer ${
-                            selectedCardTab === 'students' 
-                              ? 'bg-white text-slate-800 shadow-xs' 
-                              : 'text-slate-500 hover:text-slate-700 bg-transparent'
-                          }`}
-                        >
-                          Students ({idCardsStudents.length})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedCardTab('staff');
-                            const firstStf = idCardsStaff[0];
-                            if (firstStf) setSelectedPersonId(firstStf.id);
-                          }}
-                          className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all border-none cursor-pointer ${
-                            selectedCardTab === 'staff' 
-                              ? 'bg-white text-slate-800 shadow-xs' 
-                              : 'text-slate-500 hover:text-slate-700 bg-transparent'
-                          }`}
-                        >
-                          Staff ({idCardsStaff.length})
-                        </button>
-                      </div>
-                      
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const activeList = selectedCardTab === 'students' ? idCardsStudents : idCardsStaff;
-                          const allChecked = activeList.every(p => selectedCheckboxes[p.id]);
-                          const nextMap = { ...selectedCheckboxes };
-                          activeList.forEach(p => {
-                            nextMap[p.id] = !allChecked;
-                          });
-                          setSelectedCheckboxes(nextMap);
-                        }}
-                        className="text-[9px] font-black text-[#1e40af] uppercase cursor-pointer hover:underline bg-transparent border-none"
-                      >
-                        Toggle All
-                      </button>
-                    </div>
-
-                    {/* Filter controls */}
-                    <div className="p-3 border-b border-slate-100 flex gap-2">
-                      <div className="relative flex-1">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-                        <input
-                          type="text"
-                          placeholder={`Search ${selectedCardTab}...`}
-                          value={cardSearchQuery}
-                          onChange={(e) => setCardSearchQuery(e.target.value)}
-                          className="w-full pl-7.5 pr-2 py-1.5 bg-slate-50 border border-slate-200 text-[11px] rounded-xl focus:outline-none focus:border-slate-400 text-slate-800 font-medium"
-                        />
-                      </div>
-                      
-                      <select
-                        value={cardSchoolFilter}
-                        onChange={(e) => setCardSchoolFilter(e.target.value)}
-                        className="px-2 py-1.5 bg-slate-50 border border-slate-200 text-[10px] rounded-xl focus:outline-none font-bold text-slate-600"
-                      >
-                        <option value="all">All Schools</option>
-                        {schools.map(s => (
-                          <option key={s.id} value={s.id}>{s.name}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Checkbox select header status description */}
-                    <div className="px-3.5 py-2.5 bg-slate-50/30 border-b border-slate-100 flex items-center justify-between text-[9.5px] uppercase font-black tracking-wider text-slate-400 select-none">
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="checkbox"
-                          checked={
-                            (selectedCardTab === 'students' ? idCardsStudents : idCardsStaff)
-                              .filter(p => cardSchoolFilter === 'all' || p.schoolId === cardSchoolFilter)
-                              .every(p => selectedCheckboxes[p.id])
-                          }
-                          onChange={(e) => {
-                            const list = (selectedCardTab === 'students' ? idCardsStudents : idCardsStaff)
-                              .filter(p => cardSchoolFilter === 'all' || p.schoolId === cardSchoolFilter);
-                            const nextVal = e.target.checked;
-                            const nextMap = { ...selectedCheckboxes };
-                            list.forEach(p => {
-                              nextMap[p.id] = nextVal;
-                            });
-                            setSelectedCheckboxes(nextMap);
-                          }}
-                          className="rounded text-[#1e40af] focus:ring-[#1e40af] border-slate-300 w-3 h-3 cursor-pointer"
-                        />
-                        <span>Select all shown</span>
-                      </div>
-                      <span>Pass Logs</span>
-                    </div>
-
-                    {/* List Items scroll wrapper */}
-                    <div className="max-h-[380px] overflow-y-auto divide-y divide-slate-100">
-                      {(selectedCardTab === 'students' ? idCardsStudents : idCardsStaff)
-                        .filter(p => {
-                          const matchesQuery = p.name.toLowerCase().includes(cardSearchQuery.toLowerCase()) || p.idNo.toLowerCase().includes(cardSearchQuery.toLowerCase());
-                          const matchesSchool = cardSchoolFilter === 'all' || p.schoolId === cardSchoolFilter;
-                          return matchesQuery && matchesSchool;
-                        })
-                        .map((p) => {
-                          const isSelected = selectedPersonId === p.id;
-                          const isChecked = !!selectedCheckboxes[p.id];
-                          return (
-                            <div
-                              key={p.id}
-                              onClick={() => setSelectedPersonId(p.id)}
-                              className={`p-3.5 flex items-center gap-3 cursor-pointer transition-all ${
-                                isSelected 
-                                  ? 'bg-[#1e40af]/5 border-l-4 border-[#1e40af]' 
-                                  : 'hover:bg-slate-50/80 border-l-4 border-transparent'
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedCheckboxes(prev => ({
-                                    ...prev,
-                                    [p.id]: e.target.checked
-                                  }));
-                                }}
-                                className="rounded text-[#1e40af] focus:ring-[#1e40af] border-slate-300 w-3.5 h-3.5 cursor-pointer shrink-0"
-                              />
-                              
-                              {/* Avatar circle */}
-                              <div className="w-9 h-9 rounded-full bg-slate-900 flex items-center justify-center text-white font-extrabold text-xs shrink-0 select-none overflow-hidden border border-slate-200">
-                                {p.avatar ? (
-                                  <img src={p.avatar} alt={p.name} className="w-full h-full object-cover" />
-                                ) : (
-                                  <span className="text-[10px] text-slate-100 font-bold tracking-tight uppercase">
-                                    {p.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
-                                  </span>
-                                )}
-                              </div>
-
-                              {/* Student/Staff info */}
-                              <div className="flex-1 min-w-0">
-                                <h4 className="text-xs font-black text-slate-800 truncate leading-snug">{p.name}</h4>
-                                <p className="text-[9px] uppercase tracking-wider text-slate-400 font-bold flex items-center gap-1 mt-0.5">
-                                  <span>{p.schoolName}</span>
-                                </p>
-                                <span className="text-[8.5px] font-mono font-black text-[#1e40af] block mt-0.5 leading-none">{p.idNo}</span>
-                              </div>
-                            </div>
-                          );
-                        })}
-
-                      {(selectedCardTab === 'students' ? idCardsStudents : idCardsStaff).filter(p => {
+                {(() => {
+                  const visibleList = (() => {
+                    if (selectedCardTab === 'students') {
+                      return idCardsStudents.filter(p => {
                         const matchesQuery = p.name.toLowerCase().includes(cardSearchQuery.toLowerCase()) || p.idNo.toLowerCase().includes(cardSearchQuery.toLowerCase());
                         const matchesSchool = cardSchoolFilter === 'all' || p.schoolId === cardSchoolFilter;
                         return matchesQuery && matchesSchool;
-                      }).length === 0 && (
-                        <div className="p-8 text-center text-slate-400 text-xs font-bold leading-normal">
-                          No matching active print logs found.
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                      });
+                    } else {
+                      // Staff tab
+                      if (cardSchoolFilter === 'all') {
+                        // show both student and staff list
+                        const combined = [...idCardsStaff, ...idCardsStudents];
+                        return combined.filter(p => {
+                          const matchesQuery = p.name.toLowerCase().includes(cardSearchQuery.toLowerCase()) || p.idNo.toLowerCase().includes(cardSearchQuery.toLowerCase());
+                          return matchesQuery;
+                        });
+                      } else {
+                        // only display the students by school
+                        return idCardsStudents.filter(p => {
+                          const matchesQuery = p.name.toLowerCase().includes(cardSearchQuery.toLowerCase()) || p.idNo.toLowerCase().includes(cardSearchQuery.toLowerCase());
+                          const matchesSchool = p.schoolId === cardSchoolFilter;
+                          return matchesQuery && matchesSchool;
+                        });
+                      }
+                    }
+                  })();
 
-                  {/* Middle Column (xl:col-span-4): Card Customizable settings */}
-                  <div className="xl:col-span-4 bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-4">
+                  return (
+                    <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+                      
+                      {/* Left Column (xl:col-span-3): Students & Staff Selection Log */}
+                      <div className="xl:col-span-3 bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col">
+                        {/* Log tab selector students/staff */}
+                        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                          <div className="flex gap-1.5 bg-slate-200 p-1 rounded-xl">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedCardTab('students');
+                                const firstStu = idCardsStudents[0];
+                                if (firstStu) setSelectedPersonId(firstStu.id);
+                              }}
+                              className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all border-none cursor-pointer ${
+                                selectedCardTab === 'students' 
+                                  ? 'bg-white text-slate-800 shadow-xs' 
+                                  : 'text-slate-500 hover:text-slate-700 bg-transparent'
+                              }`}
+                            >
+                              Students ({idCardsStudents.length})
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedCardTab('staff');
+                                const firstStf = idCardsStaff[0];
+                                if (firstStf) setSelectedPersonId(firstStf.id);
+                              }}
+                              className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all border-none cursor-pointer ${
+                                selectedCardTab === 'staff' 
+                                  ? 'bg-white text-slate-800 shadow-xs' 
+                                  : 'text-slate-500 hover:text-slate-700 bg-transparent'
+                              }`}
+                            >
+                              Staff ({idCardsStaff.length})
+                            </button>
+                          </div>
+                          
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const allChecked = visibleList.every(p => selectedCheckboxes[p.id]);
+                              const nextMap = { ...selectedCheckboxes };
+                              visibleList.forEach(p => {
+                                nextMap[p.id] = !allChecked;
+                              });
+                              setSelectedCheckboxes(nextMap);
+                            }}
+                            className="text-[9px] font-black text-[#1e40af] uppercase cursor-pointer hover:underline bg-transparent border-none"
+                          >
+                            Toggle All
+                          </button>
+                        </div>
+
+                        {/* Filter controls */}
+                        <div className="p-3 border-b border-slate-100 flex gap-2">
+                          <div className="relative flex-1">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
+                            <input
+                              type="text"
+                              placeholder={`Search ${selectedCardTab}...`}
+                              value={cardSearchQuery}
+                              onChange={(e) => setCardSearchQuery(e.target.value)}
+                              className="w-full pl-7.5 pr-2 py-1.5 bg-slate-50 border border-slate-200 text-[11px] rounded-xl focus:outline-none focus:border-slate-400 text-slate-800 font-medium"
+                            />
+                          </div>
+                          
+                          <select
+                            value={cardSchoolFilter}
+                            onChange={(e) => setCardSchoolFilter(e.target.value)}
+                            className="px-2 py-1.5 bg-slate-50 border border-slate-200 text-[10px] rounded-xl focus:outline-none font-bold text-slate-600"
+                          >
+                            <option value="all">All Schools</option>
+                            {schools.map(s => (
+                              <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Checkbox select header status description */}
+                        <div className="px-3.5 py-2.5 bg-slate-50/30 border-b border-slate-100 flex items-center justify-between text-[9.5px] uppercase font-black tracking-wider text-slate-400 select-none">
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="checkbox"
+                              checked={
+                                visibleList.length > 0 && visibleList.every(p => selectedCheckboxes[p.id])
+                              }
+                              onChange={(e) => {
+                                const nextVal = e.target.checked;
+                                const nextMap = { ...selectedCheckboxes };
+                                visibleList.forEach(p => {
+                                  nextMap[p.id] = nextVal;
+                                });
+                                setSelectedCheckboxes(nextMap);
+                              }}
+                              className="rounded text-[#1e40af] focus:ring-[#1e40af] border-slate-300 w-3 h-3 cursor-pointer"
+                            />
+                            <span>Select all shown</span>
+                          </div>
+                          <span>Pass Logs</span>
+                        </div>
+
+                        {/* List Items scroll wrapper */}
+                        <div className="max-h-[380px] overflow-y-auto divide-y divide-slate-100">
+                          {visibleList.map((p) => {
+                            const isSelected = selectedPersonId === p.id;
+                            const isChecked = !!selectedCheckboxes[p.id];
+                            return (
+                              <div
+                                key={p.id}
+                                onClick={() => setSelectedPersonId(p.id)}
+                                className={`p-3.5 flex items-center gap-3 cursor-pointer transition-all ${
+                                  isSelected 
+                                    ? 'bg-[#1e40af]/5 border-l-4 border-[#1e40af]' 
+                                    : 'hover:bg-slate-50/80 border-l-4 border-transparent'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedCheckboxes(prev => ({
+                                      ...prev,
+                                      [p.id]: e.target.checked
+                                    }));
+                                  }}
+                                  className="rounded text-[#1e40af] focus:ring-[#1e40af] border-slate-300 w-3.5 h-3.5 cursor-pointer shrink-0"
+                                />
+                                
+                                {/* Avatar circle */}
+                                <div className="w-9 h-9 rounded-full bg-slate-900 flex items-center justify-center text-white font-extrabold text-xs shrink-0 select-none overflow-hidden border border-slate-200">
+                                  {p.avatar ? (
+                                    <img src={p.avatar} alt={p.name} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <span className="text-[10px] text-slate-100 font-bold tracking-tight uppercase">
+                                      {p.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Student/Staff info */}
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="text-xs font-black text-slate-800 truncate leading-snug">{p.name}</h4>
+                                  <p className="text-[9px] uppercase tracking-wider text-slate-400 font-bold flex items-center gap-1 mt-0.5">
+                                    <span>{p.schoolName}</span>
+                                  </p>
+                                  <span className="text-[8.5px] font-mono font-black text-[#1e40af] block mt-0.5 leading-none">{p.idNo}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                          {visibleList.length === 0 && (
+                            <div className="p-8 text-center text-slate-400 text-xs font-bold leading-normal">
+                              No matching active print logs found.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Middle Column (xl:col-span-3): Card Customizable settings */}
+                      <div className="xl:col-span-3 bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-4">
                     <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
                       <div>
                         <span className="text-[9px] uppercase font-black tracking-widest text-indigo-600 block">Template designer</span>
@@ -1927,8 +1993,8 @@ export default function SuperAdminDashboard() {
                     </div>
                   </div>
 
-                  {/* Right Column (xl:col-span-4): Dynamic Dual-Sided Visual Mockup */}
-                  <div className="xl:col-span-4 bg-slate-50 p-4 xl:p-5.5 rounded-2xl border border-dashed border-slate-300 flex flex-col items-center">
+                  {/* Right Column (xl:col-span-6): Dynamic Dual-Sided Visual Mockup */}
+                  <div className="xl:col-span-6 bg-slate-50 p-4 xl:p-5.5 rounded-2xl border border-dashed border-slate-300 flex flex-col items-center">
                     
                     {/* View Controls Toolbar */}
                     <div className="w-full bg-white px-3.5 py-2.5 rounded-xl border border-slate-200 flex items-center justify-between shadow-xs mb-4 select-none">
@@ -1968,27 +2034,27 @@ export default function SuperAdminDashboard() {
                         <motion.div
                           initial={{ scale: 0.97, opacity: 0 }}
                           animate={{ scale: 1, opacity: 1 }}
-                          className="w-full max-w-[460px] aspect-[1.6/1] bg-white rounded-[24px] shadow-xl border border-slate-200/80 p-5 relative overflow-hidden select-none shrink-0"
+                          className="w-full max-w-[560px] aspect-[1.58/1] bg-white rounded-[28px] shadow-2xl border-2 border-slate-200/90 p-6 relative overflow-hidden select-none shrink-0"
                           style={{ backgroundColor: cardBgColor }}
                         >
                           {/* Top-Left Diagonal Artistic Geometric Stripes */}
-                          <div className="absolute top-0 left-0 w-[140px] h-[140px] pointer-events-none z-10 opacity-90 overflow-hidden">
-                            <div className="absolute -top-10 -left-10 w-28 h-28 rotate-45" style={{ backgroundColor: cardPrimaryColor }} />
-                            <div className="absolute top-0 -left-12 w-28 h-10 rotate-45 opacity-70" style={{ backgroundColor: cardSecondaryColor }} />
-                            <div className="absolute top-5 -left-16 w-28 h-6 rotate-45 opacity-40 bg-cyan-300" />
+                          <div className="absolute top-0 left-0 w-[160px] h-[160px] pointer-events-none z-10 opacity-90 overflow-hidden">
+                            <div className="absolute -top-10 -left-10 w-32 h-32 rotate-45" style={{ backgroundColor: cardPrimaryColor }} />
+                            <div className="absolute top-0 -left-12 w-32 h-12 rotate-45 opacity-70" style={{ backgroundColor: cardSecondaryColor }} />
+                            <div className="absolute top-5 -left-16 w-32.5 h-8 rotate-45 opacity-40 bg-cyan-300" />
                           </div>
 
                           {/* Top Right "MyEduRide enabled" badge in mockup */}
-                          <div className="absolute top-4 right-4 z-10 flex items-center gap-1 bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200/80 px-2 py-0.5 rounded-full select-none shadow-xs">
+                          <div className="absolute top-4.5 right-4.5 z-10 flex items-center gap-1.5 bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200/80 px-2.5 py-1 rounded-full select-none shadow-xs">
                             <div className="w-5 h-5 rounded-full bg-[#1e40af] flex items-center justify-center text-white p-0.5 shadow-sm">
                               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3.5 h-3.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
                             </div>
-                            <span className="text-[7.5px] font-black text-slate-800 tracking-wider">MyEduRide <span className="text-[#3b82f6] lowercase italic font-bold">enabled</span></span>
+                            <span className="text-[8.5px] font-black text-slate-800 tracking-wider">MyEduRide <span className="text-[#3b82f6] lowercase italic font-bold">enabled</span></span>
                           </div>
 
                           {/* Front School Crest/Logo Graphic representation inside background */}
                           {cardShowLogo && (
-                            <div className="absolute right-6 top-10 w-44 h-44 opacity-[0.06] pointer-events-none z-0 text-slate-700">
+                            <div className="absolute right-8 top-12 w-48 h-48 opacity-[0.06] pointer-events-none z-0 text-slate-700">
                               {cardLogoType === 'shield_tribal' ? (
                                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full"><path d="M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10a10 10 0 0 0 10-10A10 10 0 0 0 12 2M12 4a2 2 0 1 1-2 2a2 2 0 0 1 2-2M8 12h8a4 4 0 0 1-4 4a4 4 0 0 1-4-4Z"/></svg>
                               ) : (
@@ -1998,21 +2064,21 @@ export default function SuperAdminDashboard() {
                           )}
 
                           {/* Main School header block */}
-                          <div className="text-center pt-2 pl-[42px] pr-[100px] z-20 relative select-none">
-                            <h3 className="text-[17px] font-black tracking-tight leading-tight block truncate text-slate-900" style={{ color: cardPrimaryColor }}>
+                          <div className="text-center pt-1.5 pl-[48px] pr-[110px] z-20 relative select-none">
+                            <h3 className="text-[20px] font-black tracking-tight leading-tight block truncate text-slate-900" style={{ color: cardPrimaryColor }}>
                               {selectedPerson ? selectedPerson.schoolName : 'UGBEKUN ACADEMY'}
                             </h3>
                             {cardShowAddress && (
-                              <p className="text-[7.5px] text-slate-500 font-extrabold tracking-wider leading-none mt-0.5 uppercase truncate">
+                              <p className="text-[9.5px] text-slate-500 font-extrabold tracking-wider leading-none mt-1 uppercase truncate">
                                 {selectedPerson ? selectedPerson.address : '23 Evbuomwan St, Benin City'}
                               </p>
                             )}
                           </div>
 
                           {/* Large banner title pill */}
-                          <div className="flex justify-center mt-2.5 z-20 relative select-none">
+                          <div className="flex justify-center mt-3 z-20 relative select-none">
                             <div 
-                              className="px-6 py-1 text-center font-black text-white text-[11.5px] uppercase tracking-widest rounded-full shadow-md min-w-[200px]"
+                              className="px-8 py-1.5 text-center font-black text-white text-[12.5px] uppercase tracking-widest rounded-full shadow-md min-w-[220px]"
                               style={{ 
                                 background: `linear-gradient(135deg, ${cardSecondaryColor} 0%, ${cardPrimaryColor} 100%)` 
                               }}
@@ -2022,12 +2088,12 @@ export default function SuperAdminDashboard() {
                           </div>
 
                           {/* Body portion: Photo & Details Layout block */}
-                          <div className="grid grid-cols-12 gap-3 mt-4 items-center z-20 relative select-none">
+                          <div className="grid grid-cols-12 gap-4 mt-4.5 items-center z-20 relative select-none">
                             
                             {/* Photo Left Part (4 of 12 cols) */}
                             <div className="col-span-4 flex flex-col items-center">
                               {cardShowPhoto && (
-                                <div className="w-[84px] h-[94px] rounded-2xl bg-white border-2 border-slate-200/80 flex items-center justify-center shadow-md relative overflow-hidden shrink-0">
+                                <div className="w-[104px] h-[116px] rounded-2xl bg-white border-2 border-slate-200/90 flex items-center justify-center shadow-lg relative overflow-hidden shrink-0">
                                   {selectedPerson && selectedPerson.avatar ? (
                                     <img 
                                       src={selectedPerson.avatar} 
@@ -2042,7 +2108,7 @@ export default function SuperAdminDashboard() {
                                   )}
                                   
                                   {/* Overlaid Role ribbon */}
-                                  <div className="absolute bottom-1 inset-x-1 py-0.5 bg-slate-900/85 backdrop-blur-xs text-[7px] text-white font-black rounded-lg text-center uppercase tracking-wider block">
+                                  <div className="absolute bottom-1 inset-x-1 py-1 bg-slate-900/85 backdrop-blur-xs text-[8px] text-white font-black rounded-lg text-center uppercase tracking-wider block">
                                     {selectedPerson ? selectedPerson.type : 'Student'}
                                   </div>
                                 </div>
@@ -2050,51 +2116,51 @@ export default function SuperAdminDashboard() {
                             </div>
 
                             {/* Details Portion Middle-Right (8 of 12 cols) */}
-                            <div className="col-span-8 space-y-1 pl-1">
-                              <div className="grid grid-cols-12 text-[9.5px] leading-tight">
-                                <span className="col-span-3 text-slate-400 font-extrabold uppercase tracking-widest text-[8.5px]">Name:</span>
-                                <span className="col-span-9 font-black text-slate-950 uppercase truncate">
+                            <div className="col-span-8 space-y-1.5 pl-1.5">
+                              <div className="grid grid-cols-12 text-[11px] leading-tight">
+                                <span className="col-span-3 text-slate-400 font-extrabold uppercase tracking-widest text-[9px]">Name:</span>
+                                <span className="col-span-9 font-black text-slate-950 uppercase truncate text-[11.5px]">
                                   {selectedPerson ? selectedPerson.name : 'OLIVIA WILSON'}
                                 </span>
                               </div>
                               
-                              <div className="grid grid-cols-12 text-[9.5px] leading-tight">
-                                <span className="col-span-3 text-slate-400 font-extrabold uppercase tracking-widest text-[8.5px]">Birth:</span>
-                                <span className="col-span-9 font-black text-slate-800">
+                              <div className="grid grid-cols-12 text-[11px] leading-tight">
+                                <span className="col-span-3 text-slate-400 font-extrabold uppercase tracking-widest text-[9px]">Birth:</span>
+                                <span className="col-span-9 font-black text-slate-800 text-[11.5px]">
                                   {selectedPerson ? selectedPerson.birth : '13/09/2010'}
                                 </span>
                               </div>
 
-                              <div className="grid grid-cols-12 text-[9.5px] leading-tight">
-                                <span className="col-span-3 text-slate-400 font-extrabold uppercase tracking-widest text-[8.5px]">Adress:</span>
-                                <span className="col-span-9 font-black text-slate-600 truncate leading-snug uppercase">
+                              <div className="grid grid-cols-12 text-[11px] leading-tight">
+                                <span className="col-span-3 text-slate-400 font-extrabold uppercase tracking-widest text-[9px]">Address:</span>
+                                <span className="col-span-9 font-black text-slate-600 truncate leading-snug uppercase text-[11.5px]">
                                   {selectedPerson ? selectedPerson.address : '13 BENONI ST., BENIN CITY'}
                                 </span>
                               </div>
 
-                              <div className="grid grid-cols-12 text-[9.5px] leading-tight">
-                                <span className="col-span-3 text-slate-400 font-extrabold uppercase tracking-widest text-[8.5px]">ID No:</span>
-                                <span className="col-span-9 font-mono font-black text-[#1e40af]" style={{ color: cardPrimaryColor }}>
+                              <div className="grid grid-cols-12 text-[11px] leading-tight">
+                                <span className="col-span-3 text-slate-400 font-extrabold uppercase tracking-widest text-[9px]">ID No:</span>
+                                <span className="col-span-9 font-mono font-black text-[#1e40af] text-[13px]" style={{ color: cardPrimaryColor }}>
                                   {selectedPerson ? selectedPerson.idNo : '123-456-7890'}
                                 </span>
                               </div>
 
                               {/* Barcode & QR Code cluster block */}
-                              <div className="flex items-center justify-between pt-1 border-t border-slate-100 mt-1">
+                              <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 mt-1.5">
                                 {cardShowBarcode ? (
                                   <div className="flex flex-col items-start leading-none gap-0.5">
                                     {/* Procedural dynamic barcode vector */}
-                                    <div className="h-[22px] w-[130px] bg-white flex gap-0.5 items-stretch p-0.5 select-none shrink-0 border border-slate-100">
+                                    <div className="h-[26px] w-[140px] bg-white flex gap-0.5 items-stretch p-0.5 select-none shrink-0 border border-slate-100">
                                       {[1, 2, 4, 1, 3, 2, 1, 2, 4, 2, 1, 3, 1, 2, 4, 1, 2, 1, 1, 4, 2].map((val, idx) => (
-                                        <div key={idx} className="bg-slate-950 shrink-0" style={{ width: `${val * 1.5}px` }} />
+                                        <div key={idx} className="bg-slate-950 shrink-0" style={{ width: `${val * 1.6}px` }} />
                                       ))}
                                     </div>
-                                    <span className="text-[7.5px] font-mono text-slate-400 font-bold tracking-widest block">{selectedPerson?.idNo || '123-456-7890'}</span>
+                                    <span className="text-[8.5px] font-mono text-slate-400 font-bold tracking-widest block">{selectedPerson?.idNo || '123-456-7890'}</span>
                                   </div>
                                 ) : <div />}
 
                                 {cardShowQR && (
-                                  <div className="w-12 h-12 bg-white rounded-lg border border-slate-200/80 flex items-center justify-center p-0.5 shadow-sm shrink-0">
+                                  <div className="w-13.5 h-13.5 bg-white rounded-lg border border-slate-200/80 flex items-center justify-center p-0.5 shadow-sm shrink-0">
                                     {qrCodeDataUrl ? (
                                       <img src={qrCodeDataUrl} alt="QR" className="w-full h-full" />
                                     ) : (
@@ -2126,7 +2192,7 @@ export default function SuperAdminDashboard() {
                         <motion.div
                           initial={{ scale: 0.97, opacity: 0 }}
                           animate={{ scale: 1, opacity: 1 }}
-                          className="w-full max-w-[460px] aspect-[1.6/1] bg-white rounded-[24px] shadow-xl border border-slate-200/80 p-5 relative overflow-hidden select-none shrink-0"
+                          className="w-full max-w-[560px] aspect-[1.58/1] bg-white rounded-[28px] shadow-2xl border-2 border-slate-200/90 p-6 relative overflow-hidden select-none shrink-0"
                           style={{ backgroundColor: cardBgColor }}
                         >
                           {/* Graduation Cap geometric backdrop pattern watermark */}
@@ -2136,14 +2202,14 @@ export default function SuperAdminDashboard() {
                           </svg>
 
                           {/* Outer card framing decoration */}
-                          <div className="absolute top-0 right-0 w-[140px] h-[140px] pointer-events-none opacity-25 overflow-hidden">
-                            <div className="absolute -top-10 -right-10 w-28 h-28 rotate-45" style={{ backgroundColor: cardPrimaryColor }} />
+                          <div className="absolute top-0 right-0 w-[160px] h-[160px] pointer-events-none opacity-25 overflow-hidden">
+                            <div className="absolute -top-10 -right-10 w-32 h-32 rotate-45" style={{ backgroundColor: cardPrimaryColor }} />
                           </div>
 
                           {/* Top Centered School Logo & Metadata */}
                           <div className="flex flex-col items-center pt-2 select-none z-10 relative">
                             {/* Crest in Shield */}
-                            <div className="w-13 h-13 rounded-2xl flex items-center justify-center text-white shadow-lg p-2" style={{ backgroundColor: cardPrimaryColor }}>
+                            <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white shadow-lg p-2.5" style={{ backgroundColor: cardPrimaryColor }}>
                               {cardLogoType === 'shield_tribal' ? (
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-full h-full"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM12 11h.01M10 8h4v4h-4z"/></svg>
                               ) : (
@@ -2151,30 +2217,30 @@ export default function SuperAdminDashboard() {
                               )}
                             </div>
                             
-                            <h4 className="text-[15px] font-black tracking-tight mt-2 text-slate-900 uppercase leading-none" style={{ color: cardPrimaryColor }}>
+                            <h4 className="text-[18px] font-black tracking-tight mt-2 text-slate-900 uppercase leading-none" style={{ color: cardPrimaryColor }}>
                               {selectedPerson ? selectedPerson.schoolName : 'UGBEKUN ACADEMY'}
                             </h4>
-                            <p className="text-[7.5px] text-slate-400 font-black tracking-widest uppercase mt-0.5">
+                            <p className="text-[9.5px] text-slate-400 font-black tracking-widest uppercase mt-1">
                               {selectedPerson ? selectedPerson.address : '23 Evbuomwan St, GRA, Benin City'}
                             </p>
                           </div>
 
                           {/* Mid Section: Authorised Signature and Return Instructions Box */}
-                          <div className="grid grid-cols-2 gap-4 mt-5 z-10 relative px-2">
+                          <div className="grid grid-cols-2 gap-4 mt-6 z-10 relative px-2">
                             
                             {/* Authorised Signature Capsule */}
                             <div className="flex flex-col items-center">
-                              <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider mb-1">Authorised Signature</span>
+                              <span className="text-[9.5px] font-black uppercase text-slate-400 tracking-wider mb-1">Authorised Signature</span>
                               {cardShowSignature ? (
-                                <div className="w-full h-11 bg-slate-50 border border-slate-200/80 rounded-xl flex flex-col items-center justify-center p-1 shadow-inner relative overflow-hidden">
+                                <div className="w-full h-14 bg-slate-50 border border-slate-200/80 rounded-xl flex flex-col items-center justify-center p-1 shadow-inner relative overflow-hidden">
                                   {/* Cursive Principal signature SVG */}
-                                  <svg viewBox="0 0 100 35" className="w-24 h-9 text-[#1e40af] fill-none stroke-current" strokeWidth="1.8" strokeLinecap="round">
+                                  <svg viewBox="0 0 100 35" className="w-28 h-10 text-[#1e40af] fill-none stroke-current" strokeWidth="1.8" strokeLinecap="round">
                                     <path d="M10 25 C25 5, 45 30, 50 15 C55 4, 75 8, 85 20 M35 15 L65 15" />
                                   </svg>
-                                  <span className="text-[8px] font-bold text-slate-500 absolute bottom-0.5 font-sans leading-none">Principal</span>
+                                  <span className="text-[8.5px] font-bold text-slate-500 absolute bottom-0.5 font-sans leading-none">Principal</span>
                                 </div>
                               ) : (
-                                <div className="w-full h-11 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 text-[8px] font-bold uppercase border border-dashed border-slate-300">
+                                <div className="w-full h-14 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 text-[9px] font-bold uppercase border border-dashed border-slate-300">
                                   Disabled
                                 </div>
                               )}
@@ -2182,9 +2248,9 @@ export default function SuperAdminDashboard() {
 
                             {/* Return Instructions Capsule */}
                             <div className="flex flex-col items-stretch">
-                              <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider mb-1 text-center">Security Return</span>
-                              <div className="h-11 bg-slate-50 border border-slate-200/60 rounded-xl p-1.5 flex flex-col justify-center items-center shadow-inner leading-tight text-center">
-                                <p className="text-[8px] text-slate-600 font-extrabold max-w-[170px]">
+                              <span className="text-[9.5px] font-black uppercase text-slate-400 tracking-wider mb-1 text-center">Security Return</span>
+                              <div className="h-14 bg-slate-50 border border-slate-200/60 rounded-xl p-2 flex flex-col justify-center items-center shadow-inner leading-tight text-center">
+                                <p className="text-[9px] text-slate-600 font-extrabold max-w-[200px]">
                                   {cardReturnInstructions}
                                 </p>
                               </div>
@@ -2194,8 +2260,8 @@ export default function SuperAdminDashboard() {
 
                           {/* Absolute Base Disclaimer Banner on light-shadow strip */}
                           {cardShowDisclaimer && (
-                            <div className="absolute bottom-0 inset-x-0 bg-slate-100 border-t border-slate-250 py-2.5 px-4 z-20 shadow-inner select-none relative mt-4">
-                              <p className="text-[7.5px] text-slate-800 text-center uppercase tracking-wide font-black leading-normal leading-snug">
+                            <div className="absolute bottom-0 inset-x-0 bg-slate-100 border-t border-slate-250 py-3 px-5 z-20 shadow-inner select-none relative mt-4">
+                              <p className="text-[9px] text-slate-800 text-center uppercase tracking-wide font-black leading-normal leading-snug">
                                 {cardDisclaimerText}
                               </p>
                             </div>
@@ -2239,6 +2305,8 @@ export default function SuperAdminDashboard() {
                   </div>
 
                 </div>
+                  );
+                })()}
               </motion.div>
             )}
 
