@@ -1,7 +1,7 @@
 // @ts-nocheck
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -303,6 +303,190 @@ export default function SuperAdminDashboard() {
   const [cardReturnInstructions, setCardReturnInstructions] = useState('If found, please return ID card to Ugbekun Academy. Thank you');
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
 
+  // Drag-and-Drop visual layout state
+  const [isDragMode, setIsDragMode] = useState(false);
+  const [isTemplateEditorOpen, setIsTemplateEditorOpen] = useState(false);
+  
+  const [positions, setPositions] = useState({
+    schoolHeader: { x: 0, y: 0 },
+    titlePill: { x: 0, y: 0 },
+    photoBox: { x: 0, y: 0 },
+    detailsBlock: { x: 0, y: 0 },
+    barcodeBlock: { x: 0, y: 0 },
+    qrBlock: { x: 0, y: 0 },
+    myEduRideBadge: { x: 0, y: 0 },
+    secureBadge: { x: 0, y: 0 },
+    backHeader: { x: 0, y: 0 },
+    signatureBlock: { x: 0, y: 0 },
+    returnBox: { x: 0, y: 0 },
+    disclaimerBlock: { x: 0, y: 0 },
+  });
+
+  const [placeholderSizes, setPlaceholderSizes] = useState({
+    photoWidth: 88,
+    photoHeight: 106,
+    titlePillWidth: 180,
+    titlePillFontSize: 11,
+    schoolHeaderFontSize: 17,
+    detailsFontSize: 10.5,
+    qrSize: 40,
+    barcodeWidth: 120,
+    barcodeHeight: 18,
+  });
+
+  const templateLoadedRef = useRef(false);
+
+  // Load template from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedPositions = localStorage.getItem('myeduride_id_positions');
+      if (savedPositions) {
+        setPositions(JSON.parse(savedPositions));
+      }
+      const savedSizes = localStorage.getItem('myeduride_id_sizes');
+      if (savedSizes) {
+        setPlaceholderSizes(JSON.parse(savedSizes));
+      }
+    } catch (e) {
+      console.error('Error loading template settings from localStorage:', e);
+    } finally {
+      templateLoadedRef.current = true;
+    }
+  }, []);
+
+  // Autosave positions
+  useEffect(() => {
+    if (!templateLoadedRef.current) return;
+    try {
+      localStorage.setItem('myeduride_id_positions', JSON.stringify(positions));
+    } catch (e) {
+      console.error('Error auto-saving positions:', e);
+    }
+  }, [positions]);
+
+  // Autosave sizes
+  useEffect(() => {
+    if (!templateLoadedRef.current) return;
+    try {
+      localStorage.setItem('myeduride_id_sizes', JSON.stringify(placeholderSizes));
+    } catch (e) {
+      console.error('Error auto-saving placeholder sizes:', e);
+    }
+  }, [placeholderSizes]);
+
+  const [activeDrag, setActiveDrag] = useState<{
+    elementId: string;
+    startX: number;
+    startY: number;
+    originalX: number;
+    originalY: number;
+  } | null>(null);
+
+  const resetCardPositions = () => {
+    const defaultPositions = {
+      schoolHeader: { x: 0, y: 0 },
+      titlePill: { x: 0, y: 0 },
+      photoBox: { x: 0, y: 0 },
+      detailsBlock: { x: 0, y: 0 },
+      barcodeBlock: { x: 0, y: 0 },
+      qrBlock: { x: 0, y: 0 },
+      myEduRideBadge: { x: 0, y: 0 },
+      secureBadge: { x: 0, y: 0 },
+      backHeader: { x: 0, y: 0 },
+      signatureBlock: { x: 0, y: 0 },
+      returnBox: { x: 0, y: 0 },
+      disclaimerBlock: { x: 0, y: 0 },
+    };
+    const defaultSizes = {
+      photoWidth: 88,
+      photoHeight: 106,
+      titlePillWidth: 180,
+      titlePillFontSize: 11,
+      schoolHeaderFontSize: 17,
+      detailsFontSize: 10.5,
+      qrSize: 40,
+      barcodeWidth: 120,
+      barcodeHeight: 18,
+    };
+    setPositions(defaultPositions);
+    setPlaceholderSizes(defaultSizes);
+    try {
+      localStorage.removeItem('myeduride_id_positions');
+      localStorage.removeItem('myeduride_id_sizes');
+    } catch (e) {}
+    showToast('All card positions and placeholder sizes reset to system default values', 'success');
+  };
+
+  const onMouseDown = (e: React.MouseEvent, elementId: string) => {
+    if (!isDragMode) return;
+    e.preventDefault();
+    setActiveDrag({
+      elementId,
+      startX: e.clientX,
+      startY: e.clientY,
+      originalX: positions[elementId] ? positions[elementId].x : 0,
+      originalY: positions[elementId] ? positions[elementId].y : 0,
+    });
+  };
+
+  const onTouchStart = (e: React.TouchEvent, elementId: string) => {
+    if (!isDragMode) return;
+    const touch = e.touches[0];
+    setActiveDrag({
+      elementId,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      originalX: positions[elementId] ? positions[elementId].x : 0,
+      originalY: positions[elementId] ? positions[elementId].y : 0,
+    });
+  };
+
+  useEffect(() => {
+    if (!activeDrag) return;
+
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      const dx = e.clientX - activeDrag.startX;
+      const dy = e.clientY - activeDrag.startY;
+      setPositions(prev => ({
+        ...prev,
+        [activeDrag.elementId]: {
+          x: activeDrag.originalX + dx,
+          y: activeDrag.originalY + dy
+        }
+      }));
+    };
+
+    const handleGlobalTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 0) return;
+      const touch = e.touches[0];
+      const dx = touch.clientX - activeDrag.startX;
+      const dy = touch.clientY - activeDrag.startY;
+      setPositions(prev => ({
+        ...prev,
+        [activeDrag.elementId]: {
+          x: activeDrag.originalX + dx,
+          y: activeDrag.originalY + dy
+        }
+      }));
+    };
+
+    const handleGlobalMouseUp = () => {
+      setActiveDrag(null);
+    };
+
+    window.addEventListener('mousemove', handleGlobalMouseMove);
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    window.addEventListener('touchmove', handleGlobalTouchMove, { passive: false });
+    window.addEventListener('touchend', handleGlobalMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleGlobalMouseMove);
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+      window.removeEventListener('touchmove', handleGlobalTouchMove);
+      window.removeEventListener('touchend', handleGlobalMouseUp);
+    };
+  }, [activeDrag]);
+
   // Auto-updating active designer values when selection switches
   const getSelectedPersonObj = () => {
     const primaryList = selectedCardTab === 'students' ? idCardsStudents : idCardsStaff;
@@ -319,7 +503,7 @@ export default function SuperAdminDashboard() {
   // Generate QR Code data URL dynamically
   useEffect(() => {
     if (!selectedPerson) return;
-    const qrText = `ID:${selectedPerson.idNo}|Name:${selectedPerson.name}|School:${selectedPerson.schoolName}`;
+    const qrText = `https://myeduride.com/verify/${selectedPerson.type?.toLowerCase() || 'student'}/${encodeURIComponent(selectedPerson.idNo || selectedPerson.id || 'unknown')}`;
     import('qrcode').then((QRCode) => {
       QRCode.toDataURL(qrText, { margin: 1, width: 220, color: { dark: '#000000', light: '#ffffff' } })
         .then(url => {
@@ -1564,28 +1748,322 @@ export default function SuperAdminDashboard() {
                           showToast('Please select at least one card log to batch print', 'error');
                           return;
                         }
-                        showToast(`Initiating batch export of ${selectedCount} layout(s)...`, 'success');
+                        showToast(`Initiating high-fidelity batch export of ${selectedCount} card(s)...`, 'success');
                         
-                        // Dynamically import jspdf & html2canvas for browser-only compiling
+                        // Dynamically import jspdf, html2canvas, and qrcode for browser-only compiling
                         Promise.all([
                           import('jspdf'),
-                          import('html2canvas')
-                        ]).then(([jsPDFModule, html2canvasModule]) => {
+                          import('html2canvas'),
+                          import('qrcode')
+                        ]).then(async ([jsPDFModule, html2canvasModule, qrcodeModule]) => {
                           const jsPDF = jsPDFModule.default;
                           const html2canvas = html2canvasModule.default;
+                          const QRCode = qrcodeModule.default || qrcodeModule;
+
+                          const selectedItems = [...idCardsStudents, ...idCardsStaff].filter(item => selectedCheckboxes[item.id]);
+
                           const pdf = new jsPDF({
                             orientation: 'landscape',
                             unit: 'mm',
-                            format: 'a4'
+                            format: [100.6, 70.98] // Landscape CR80 layout dimensions format matching user specifications
                           });
 
-                          showToast('Rendering high fidelity PDF sheets... Please wait.', 'info');
-                          pdf.text("MyEduRide Master Batch ID Print Log", 10, 10);
-                          pdf.save("myeduride-batch-cards.pdf");
-                          showToast('Batch PDF compiled successfully!', 'success');
+                          let isFirstPage = true;
+
+                          // Create a temporary off-screen container in positive visible viewport to guarantee rendering without clipping empty PDFs
+                          const printGroup = document.createElement('div');
+                          printGroup.style.position = 'fixed';
+                          printGroup.style.bottom = '0px';
+                          printGroup.style.right = '0px';
+                          printGroup.style.width = '480px';
+                          printGroup.style.height = '304px';
+                          printGroup.style.opacity = '0.01';
+                          printGroup.style.pointerEvents = 'none';
+                          printGroup.style.zIndex = '-9999';
+                          document.body.appendChild(printGroup);
+
+                          try {
+                            for (const item of selectedItems) {
+                              const qrText = `https://myeduride.com/verify/student/${item.idNo || 'unknown'}`;
+                              const qrDataUrl = await QRCode.toDataURL(qrText, { margin: 1, width: 140 });
+
+                              // Resolve primary and secondary color theme
+                              const matchedSchoolObj = schools.find(s => s.name.toLowerCase().trim() === item.schoolName.toLowerCase().trim());
+                              const pColor = matchedSchoolObj?.primary_color || cardPrimaryColor || '#1e40af';
+                              const sColor = matchedSchoolObj?.secondary_color || cardSecondaryColor || '#3b82f6';
+
+                              // --- FRONT SIDE RENDER ---
+                              if (cardLayoutSide === 'dual' || cardLayoutSide === 'front') {
+                                const frontCard = document.createElement('div');
+                                frontCard.style.width = '480px';
+                                frontCard.style.height = '304px';
+                                frontCard.style.backgroundColor = cardBgColor;
+                                frontCard.style.borderRadius = '24px';
+                                frontCard.style.position = 'relative';
+                                frontCard.style.overflow = 'hidden';
+                                frontCard.style.boxSizing = 'border-box';
+                                frontCard.style.border = '1px solid rgba(226, 232, 240, 0.9)';
+                                frontCard.style.fontFamily = 'system-ui, -apple-system, sans-serif';
+                                frontCard.style.padding = '22px';
+
+                                frontCard.innerHTML = `
+                                  <!-- Diagonal stripes decoration -->
+                                  <div style="position: absolute; top:0; left:0; width:140px; height:140px; pointer-events:none; z-index:10; opacity:0.9; overflow:hidden;">
+                                    <div style="position: absolute; top:-40px; left:-40px; width:112px; height:112px; transform:rotate(45deg); background-color:${pColor};"></div>
+                                    <div style="position: absolute; top:0; left:-48px; width:112px; height:40px; transform:rotate(45deg); opacity:0.7; background-color:${sColor};"></div>
+                                    <div style="position: absolute; top:20px; left:-64px; width:114px; height:24px; transform:rotate(45deg); opacity:0.4; background-color:#67e8f9;"></div>
+                                  </div>
+
+                                  <!-- MyEduRide enabled badge -->
+                                  <div style="position: absolute; top:16px; right:16px; z-index:10; display:flex; align-items:center; gap:4px; background:linear-gradient(to right, #f8fafc, #f1f5f9); border:1px solid rgba(226,232,240,0.8); padding:2px 8px; border-radius:9999px; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
+                                    <div style="width:16px; height:16px; border-radius:50%; background-color:#1e40af; display:flex; align-items:center; justify-content:center; color:#ffffff; padding:2px;">
+                                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="width:10px; height:10px;"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                                    </div>
+                                    <span style="font-size:7.5px; font-weight:900; color:#1e293b; letter-spacing:0.05em; font-family:sans-serif;">MyEduRide <span style="color:#3b82f6; font-style:italic; font-weight:bold;">enabled</span></span>
+                                  </div>
+
+                                  <!-- Logo watermark representation -->
+                                  ${cardShowLogo ? `
+                                    <div style="position: absolute; right:32px; top:48px; width:160px; height:160px; opacity:0.05; pointer-events:none; z-index:0; color:#334155;">
+                                      ${cardLogoType === 'shield_tribal' ? `
+                                        <svg viewBox="0 0 24 24" fill="currentColor" style="width:100%; height:100%;"><path d="M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10a10 10 0 0 0 10-10A10 10 0 0 0 12 2M12 4a2 2 0 1 1-2 2a2 2 0 0 1 2-2M8 12h8a4 4 0 0 1-4 4a4 4 0 0 1-4-4Z"/></svg>
+                                      ` : `
+                                        <svg viewBox="0 0 24 24" fill="currentColor" style="width:100%; height:100%;"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                                      `}
+                                    </div>
+                                  ` : ''}
+
+                                  <!-- School logo / naming header -->
+                                  <div style="text-align:center; padding-top:6px; padding-left:36px; padding-right:116px; z-index:20; position:relative; box-sizing:border-box;">
+                                    <h3 style="font-size:17px; font-weight:800; margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:${pColor}; text-transform:uppercase;">
+                                      ${item.schoolName}
+                                    </h3>
+                                    ${cardShowAddress ? `
+                                      <p style="font-size:8.5px; margin:2px 0 0 0; color:#64748b; font-weight:800; letter-spacing:0.05em; text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                                        ${item.address}
+                                      </p>
+                                    ` : ''}
+                                  </div>
+
+                                  <!-- Role header banner -->
+                                  <div style="display:flex; justify-content:center; margin-top:10px; z-index:20; position:relative;">
+                                    <div style="padding:4px 24px; text-align:center; font-weight:900; color:#ffffff; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; border-radius:6px; min-width:180px; box-sizing:border-box; background:linear-gradient(135deg, ${sColor} 0%, ${pColor} 100%);">
+                                      ${item.type === 'Student' ? 'STUDENT CARD' : 'STAFF CARD'}
+                                    </div>
+                                  </div>
+
+                                  <!-- Main Grid Details -->
+                                  <div style="display:grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap:14px; margin-top:12px; align-items:start; z-index:20; position:relative; box-sizing:border-box;">
+                                    
+                                    <!-- Photo Compartment Left -->
+                                    <div style="grid-column: span 4 / span 4; display:flex; flex-direction:column; align-items:center; box-sizing:border-box;">
+                                      ${cardShowPhoto ? `
+                                        <div style="width:84px; height:100px; border-radius:8px; background-color:#ffffff; border:1px solid #e2e8f0; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; box-shadow:0 4px 6px -1px rgba(0,0,0,0.1); shrink-0:true;">
+                                          ${item.avatar ? `
+                                            <img src="${item.avatar}" style="width:100%; height:100%; object-fit:cover;" />
+                                          ` : `
+                                            <div style="width:100%; height:100%; background-color:#020617; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#94a3b8;">
+                                              <svg viewBox="0 0 24 24" fill="currentColor" style="width:24px; height:24px;"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                                            </div>
+                                          `}
+                                          
+                                          <!-- Ribbon Role overlay -->
+                                          <div style="position: absolute; bottom:4px; left:4px; right:4px; padding:2px 0; background-color:rgba(15,23,42,0.85); backdrop-filter:blur(4px); font-size:7px; color:#ffffff; font-weight:900; border-radius:4px; text-align:center; text-transform:uppercase; letter-spacing:0.05em;">
+                                            ${item.type}
+                                          </div>
+                                        </div>
+                                      ` : ''}
+                                    </div>
+
+                                    <!-- Column details right -->
+                                    <div style="grid-column: span 8 / span 8; display:flex; flex-direction:column; gap:4px; box-sizing:border-box;">
+                                      <div style="display:grid; grid-template-columns: repeat(12, minmax(0, 1fr)); font-size:10.5px; line-height:1.25;">
+                                        <span style="grid-column: span 3; color:#94a3b8; font-weight:800; text-transform:uppercase; font-size:8px; letter-spacing:0.05em;">Name:</span>
+                                        <span style="grid-column: span 9; font-weight:900; color:#0f172a; text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${item.name}</span>
+                                      </div>
+
+                                      <div style="display:grid; grid-template-columns: repeat(12, minmax(0, 1fr)); font-size:10.5px; line-height:1.25;">
+                                        <span style="grid-column: span 3; color:#94a3b8; font-weight:800; text-transform:uppercase; font-size:8px; letter-spacing:0.05em;">Birth:</span>
+                                        <span style="grid-column: span 9; font-weight:900; color:#1e293b;">${item.birth || '12/04/2012'}</span>
+                                      </div>
+
+                                      <div style="display:grid; grid-template-columns: repeat(12, minmax(0, 1fr)); font-size:10.5px; line-height:1.25;">
+                                        <span style="grid-column: span 3; color:#94a3b8; font-weight:800; text-transform:uppercase; font-size:8px; letter-spacing:0.05em;">Address:</span>
+                                        <span style="grid-column: span 9; font-weight:800; color:#475569; text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${item.address}</span>
+                                      </div>
+
+                                      <div style="display:grid; grid-template-columns: repeat(12, minmax(0, 1fr)); font-size:10.5px; line-height:1.25;">
+                                        <span style="grid-column: span 3; color:#94a3b8; font-weight:800; text-transform:uppercase; font-size:8px; letter-spacing:0.05em;">ID No:</span>
+                                        <span style="grid-column: span 9; font-weight:900; color:${pColor}; font-family:monospace; font-size:12px;">${item.idNo}</span>
+                                      </div>
+
+                                      <!-- Barcode/QR Row alignment -->
+                                      <div style="display:flex; align-items:center; justify-content:space-between; border-top:1px solid #f1f5f9; padding-top:4px; margin-top:2px; box-sizing:border-box;">
+                                        ${cardShowBarcode ? `
+                                          <div style="display:flex; flex-direction:column; align-items:start; gap:2.5px; box-sizing:border-box;">
+                                            <div style="height:20px; width:110px; background-color:#ffffff; border:1px solid #f1f5f9; padding:2px; display:flex; gap:1.2px; box-sizing:border-box; overflow:hidden;">
+                                              ${[1, 2, 4, 1, 3, 2, 1, 2, 4, 2, 1, 3, 1, 2, 4, 1, 2, 1, 1, 4, 2].map(val => `
+                                                <div style="background-color:#020617; width:${val * 1.2}px; height:100%;"></div>
+                                              `).join('')}
+                                            </div>
+                                            <span style="font-size:8px; font-family:monospace; color:#94a3b8; font-weight:bold; letter-spacing:0.05em;">${item.idNo}</span>
+                                          </div>
+                                        ` : '<div></div>'}
+
+                                        ${cardShowQR ? `
+                                          <div style="width:44px; height:44px; background-color:#ffffff; border:1px solid rgba(226,232,240,0.8); border-radius:6px; display:flex; align-items:center; justify-content:center; padding:2px; box-sizing:border-box; shrink-0:true;">
+                                            <img src="${qrDataUrl}" style="width:100%; height:100%;" />
+                                          </div>
+                                        ` : ''}
+                                      </div>
+
+                                    </div>
+                                  </div>
+
+                                  <!-- Secure partition ribbon bottom left -->
+                                  <div style="position: absolute; left:22px; bottom:20px; display:flex; align-items:center; gap:6px; opacity:0.9; pointer-events:none;">
+                                    ${cardLogoType === 'shield_tribal' ? `
+                                      <div style="width:18px; height:20px; border-radius:4px; display:flex; align-items:center; justify-content:center; color:#ffffff; background-color:${pColor}; padding:2.5px; box-sizing:border-box;">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:100%; height:100%;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM12 11h.01M10 8h4v4h-4z"/></svg>
+                                      </div>
+                                    ` : `
+                                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:14px; height:14px; color:#94a3b8;"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 2 3 6 3s6-1 6-3v-5"/></svg>
+                                    `}
+                                    <span style="font-size:7px; color:#94a3b8; font-weight:800; text-transform:uppercase; letter-spacing:0.05em;">Secure partition</span>
+                                  </div>
+                                `;
+
+                                printGroup.appendChild(frontCard);
+
+                                if (!isFirstPage) {
+                                  pdf.addPage();
+                                }
+                                isFirstPage = false;
+
+                                const canvas = await html2canvas(frontCard, { scale: 3, useCORS: true });
+                                const imgData = canvas.toDataURL('image/png');
+                                pdf.addImage(imgData, 'PNG', 0, 0, 100.6, 70.98);
+
+                                printGroup.removeChild(frontCard);
+                              }
+
+                              // --- BACK SIDE RENDER ---
+                              if (cardLayoutSide === 'dual' || cardLayoutSide === 'back') {
+                                const backCard = document.createElement('div');
+                                backCard.style.width = '480px';
+                                backCard.style.height = '304px';
+                                backCard.style.backgroundColor = cardBgColor;
+                                backCard.style.borderRadius = '24px';
+                                backCard.style.position = 'relative';
+                                backCard.style.overflow = 'hidden';
+                                backCard.style.boxSizing = 'border-box';
+                                backCard.style.border = '1px solid rgba(226, 232, 240, 0.9)';
+                                backCard.style.fontFamily = 'system-ui, -apple-system, sans-serif';
+                                backCard.style.padding = '22px';
+
+                                backCard.innerHTML = `
+                                  <!-- Graduation cap backdrop watermark -->
+                                  <div style="position: absolute; inset:0; opacity:0.03; pointer-events:none; color:#1e293b; display:flex; align-items:center; justify-content:center;">
+                                    <svg viewBox="0 0 24 24" fill="currentColor" style="width:300px; height:300px;">
+                                      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                                    </svg>
+                                  </div>
+
+                                  <!-- Backdrop stripe alignment decoration -->
+                                  <div style="position: absolute; top:0; right:0; width:130px; height:130px; pointer-events:none; opacity:0.25; overflow:hidden;">
+                                    <div style="position: absolute; top:-40px; right:-40px; width:112px; height:112px; transform:rotate(45deg); background-color:${pColor};"></div>
+                                  </div>
+
+                                  <!-- Top centered school header section -->
+                                  <div style="display:flex; flex-direction:column; align-items:center; padding-top:10px; position:relative; z-index:10; box-sizing:border-box;">
+                                    <div style="width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; color:#ffffff; background-color:${pColor}; box-shadow:0 10px 15px -3px rgba(0,0,0,0.1); padding:8px; box-sizing:border-box;">
+                                      ${cardLogoType === 'shield_tribal' ? `
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:100%; height:100%;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM12 11h.01M10 8h4v4h-4z"/></svg>
+                                      ` : `
+                                        <svg viewBox="0 0 24 24" fill="currentColor" style="width:100%; height:100%;"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                                      `}
+                                    </div>
+                                    <h4 style="font-size:15px; font-weight:800; margin:6px 0 0 0; color:${pColor}; text-transform:uppercase; text-align:center;">
+                                      ${item.schoolName}
+                                    </h4>
+                                    <p style="font-size:8.5px; font-weight:700; margin:4px 0 0 0; color:#94a3b8; letter-spacing:0.05em; text-transform:uppercase; text-align:center;">
+                                      ${item.address}
+                                    </p>
+                                  </div>
+
+                                  <!-- Mid section validation structure -->
+                                  <div style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:14px; margin-top:16px; position:relative; z-index:10; padding:0 24px; box-sizing:border-box;">
+                                    
+                                    <!-- Authorised label/signature -->
+                                    <div style="display:flex; flex-direction:column; align-items:center; box-sizing:border-box;">
+                                      <span style="font-size:8.5px; font-weight:900; text-transform:uppercase; color:#94a3b8; letter-spacing:0.05em; margin-bottom:4px;">Authorised Signature</span>
+                                      ${cardShowSignature ? `
+                                        <div style="width:100%; height:44px; background-color:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:4px; box-sizing:border-box; position:relative; overflow:hidden; box-shadow:inset 0 2px 4px 0 rgba(0,0,0,0.02);">
+                                          <svg viewBox="0 0 100 35" style="width:96px; height:28px; color:#1e40af; fill:none; stroke:currentColor;" stroke-width="1.8" stroke-linecap="round">
+                                            <path d="M10 25 C25 5, 45 30, 50 15 C55 4, 75 8, 85 20 M35 15 L65 15" />
+                                          </svg>
+                                          <span style="font-size:7px; font-weight:700; color:#64748b; position:absolute; bottom:2px;">Principal</span>
+                                        </div>
+                                      ` : `
+                                        <div style="width:100%; height:44px; background-color:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:8px; font-weight:800; text-transform:uppercase; border-style:dashed; box-sizing:border-box;">
+                                          Disabled
+                                        </div>
+                                      `}
+                                    </div>
+
+                                    <!-- Security return box -->
+                                    <div style="display:flex; flex-direction:column; align-items:stretch; box-sizing:border-box;">
+                                      <span style="font-size:8.5px; font-weight:900; text-transform:uppercase; color:#94a3b8; letter-spacing:0.05em; margin-bottom:4px; text-align:center;">Security Return</span>
+                                      <div style="height:44px; background-color:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:6px; display:flex; flex-direction:column; justify-content:center; align-items:center; box-sizing:border-box; box-shadow:inset 0 2px 4px 0 rgba(0,0,0,0.02); text-align:center;">
+                                        <p style="font-size:8px; color:#475569; font-weight:800; margin:0; line-height:1.25; max-w:190px;">
+                                          ${cardReturnInstructions}
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                  </div>
+
+                                  <!-- Disclaimer at bottom -->
+                                  ${cardShowDisclaimer ? `
+                                    <div style="position: absolute; bottom:0; left:0; right:0; background-color:#f1f5f9; border-top:1px solid #e2e8f0; padding:10px 16px; box-sizing:border-box; z-index:20; box-shadow:inset 0 2px 4px 0 rgba(0,0,0,0.01);">
+                                      <p style="font-size:8px; color:#1e293b; text-align:center; text-transform:uppercase; letter-spacing:0.02em; font-weight:900; margin:0; line-height:1.3;">
+                                        ${cardDisclaimerText}
+                                      </p>
+                                    </div>
+                                  ` : ''}
+
+                                  <!-- Top Right Badge icon -->
+                                  <div style="position: absolute; right:16px; top:16px; opacity:0.15; pointer-events:none;">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:#0f172a;"><path d="M12 2c5.523 0 10 4.477 10 10s-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2Z"/><path d="m9 12 2 2 4-4"/></svg>
+                                  </div>
+                                `;
+
+                                printGroup.appendChild(backCard);
+
+                                if (!isFirstPage) {
+                                  pdf.addPage();
+                                }
+                                isFirstPage = false;
+
+                                const canvas = await html2canvas(backCard, { scale: 3, useCORS: true });
+                                const imgData = canvas.toDataURL('image/png');
+                                pdf.addImage(imgData, 'PNG', 0, 0, 100.6, 70.98);
+
+                                printGroup.removeChild(backCard);
+                              }
+                            }
+
+                            pdf.save(`myeduride-school-cards-${selectedItems.length}.pdf`);
+                            showToast('High-fidelity Batch PDF generated successfully!', 'success');
+                          } catch (err) {
+                            console.error('PDF generation error:', err);
+                            showToast('Layout compilation error. Check console logs.', 'error');
+                          } finally {
+                            document.body.removeChild(printGroup);
+                          }
                         }).catch(e => {
-                          console.error('PDF export failed:', e);
-                          showToast('PDF compilation is only supported in desktop mode', 'error');
+                          console.error('Loading print framework failed:', e);
+                          showToast('Failed to load drawing framework tools.', 'error');
                         });
                       }}
                       className="px-4 py-2 bg-gradient-to-tr from-[#1e40af] to-[#3b82f6] text-white hover:opacity-90 font-extrabold text-xs uppercase rounded-xl border-none cursor-pointer flex items-center gap-1.5 transition shadow-md"
@@ -1997,202 +2475,332 @@ export default function SuperAdminDashboard() {
                   <div className="xl:col-span-6 bg-slate-50 p-4 xl:p-5.5 rounded-2xl border border-dashed border-slate-300 flex flex-col items-center">
                     
                     {/* View Controls Toolbar */}
-                    <div className="w-full bg-white px-3.5 py-2.5 rounded-xl border border-slate-200 flex items-center justify-between shadow-xs mb-4 select-none">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Preview Layout</span>
-                      <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-                        {[
-                          { id: 'dual', label: 'Both' },
-                          { id: 'front', label: 'Front' },
-                          { id: 'back', label: 'Back' }
-                        ].map((s) => (
+                    <div className="w-full bg-white px-3.5 py-2.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row gap-3 items-center justify-between shadow-xs mb-4 select-none">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Preview Layout:</span>
+                        <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                          {[
+                            { id: 'dual', label: 'Both' },
+                            { id: 'front', label: 'Front' },
+                            { id: 'back', label: 'Back' }
+                          ].map((s) => (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onClick={() => setCardLayoutSide(s.id as any)}
+                              className={`px-2.5 py-1 text-[9.5px] font-extrabold uppercase rounded-md transition-all cursor-pointer border-none ${
+                                cardLayoutSide === s.id 
+                                  ? 'bg-white text-[#1e40af] shadow-xs' 
+                                  : 'text-slate-400 hover:text-slate-700 bg-transparent'
+                              }`}
+                            >
+                              {s.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setIsTemplateEditorOpen(true)}
+                          className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-black uppercase rounded-lg border border-indigo-200 cursor-pointer transition flex items-center gap-1 shadow-xs"
+                          title="Configure exact template sizes and offsets"
+                        >
+                          ⚙️ Edit ID Card
+                        </button>
+
+                        <label className="flex items-center gap-1.5 text-[10.5px] font-black text-slate-700 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={isDragMode}
+                            onChange={(e) => {
+                              setIsDragMode(e.target.checked);
+                              showToast(e.target.checked ? 'Drag & Drop positioning enabled! Hover and drag elements on the card.' : 'Drag & Drop disabled.', 'info');
+                            }}
+                            className="rounded text-[#1e40af] focus:ring-[#1e40af] border-slate-300 w-3.5 h-3.5 cursor-pointer"
+                          />
+                          <span className={isDragMode ? 'text-indigo-600 animate-pulse' : 'text-slate-500'}>🛠️ Drag-And-Drop Layout</span>
+                        </label>
+                        
+                        {isDragMode && (
                           <button
-                            key={s.id}
                             type="button"
-                            onClick={() => setCardLayoutSide(s.id as any)}
-                            className={`px-2.5 py-1 text-[9.5px] font-extrabold uppercase rounded-md transition-all cursor-pointer border-none ${
-                              cardLayoutSide === s.id 
-                                ? 'bg-white text-[#1e40af] shadow-xs' 
-                                : 'text-slate-400 hover:text-slate-700 bg-transparent'
-                            }`}
+                            onClick={resetCardPositions}
+                            className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[8.5px] font-extrabold uppercase rounded border border-rose-200 cursor-pointer transition"
+                            title="Reset all element offsets to default"
                           >
-                            {s.label}
+                            Reset
                           </button>
-                        ))}
+                        )}
                       </div>
                     </div>
 
                     {/* Interactive DOM content to print */}
-                    <div 
-                      id="id-card-render-container"
-                      className={`w-full flex ${cardLayoutSide === 'dual' ? 'flex-col gap-6' : 'flex-col items-center'} justify-center`}
-                      style={{
-                        fontFamily: cardFontFamily === 'sans' ? 'var(--font-sans), sans-serif' : cardFontFamily === 'serif' ? 'Georgia, serif' : 'var(--font-mono), monospace'
-                      }}
-                    >
-                      {/* FRONT SIDE OF ID CARD */}
-                      {(cardLayoutSide === 'dual' || cardLayoutSide === 'front') && (
-                        <motion.div
-                          initial={{ scale: 0.97, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          className="w-full max-w-[560px] aspect-[1.58/1] bg-white rounded-[28px] shadow-2xl border-2 border-slate-200/90 p-6 relative overflow-hidden select-none shrink-0"
-                          style={{ backgroundColor: cardBgColor }}
-                        >
-                          {/* Top-Left Diagonal Artistic Geometric Stripes */}
-                          <div className="absolute top-0 left-0 w-[160px] h-[160px] pointer-events-none z-10 opacity-90 overflow-hidden">
-                            <div className="absolute -top-10 -left-10 w-32 h-32 rotate-45" style={{ backgroundColor: cardPrimaryColor }} />
-                            <div className="absolute top-0 -left-12 w-32 h-12 rotate-45 opacity-70" style={{ backgroundColor: cardSecondaryColor }} />
-                            <div className="absolute top-5 -left-16 w-32.5 h-8 rotate-45 opacity-40 bg-cyan-300" />
-                          </div>
-
-                          {/* Top Right "MyEduRide enabled" badge in mockup */}
-                          <div className="absolute top-4.5 right-4.5 z-10 flex items-center gap-1.5 bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200/80 px-2.5 py-1 rounded-full select-none shadow-xs">
-                            <div className="w-5 h-5 rounded-full bg-[#1e40af] flex items-center justify-center text-white p-0.5 shadow-sm">
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3.5 h-3.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                    <div className="w-full overflow-x-auto py-2 flex flex-col items-center">
+                      <div 
+                        id="id-card-render-container"
+                        className={`flex ${cardLayoutSide === 'dual' ? 'flex-col gap-6' : 'flex-col'} items-center justify-center`}
+                        style={{
+                          fontFamily: cardFontFamily === 'sans' ? 'var(--font-sans), sans-serif' : cardFontFamily === 'serif' ? 'Georgia, serif' : 'var(--font-mono), monospace'
+                        }}
+                      >
+                        {/* FRONT SIDE OF ID CARD */}
+                        {(cardLayoutSide === 'dual' || cardLayoutSide === 'front') && (
+                          <motion.div
+                            id="card-front-side"
+                            initial={{ scale: 0.97, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            className="w-[480px] h-[304px] bg-white rounded-[24px] shadow-2xl border border-slate-200/90 p-5.5 relative overflow-hidden select-none shrink-0"
+                            style={{ backgroundColor: cardBgColor }}
+                          >
+                            {/* Top-Left Diagonal Artistic Geometric Stripes */}
+                            <div className="absolute top-0 left-0 w-[160px] h-[160px] pointer-events-none z-10 opacity-90 overflow-hidden">
+                              <div className="absolute -top-10 -left-10 w-32 h-32 rotate-45" style={{ backgroundColor: cardPrimaryColor }} />
+                              <div className="absolute top-0 -left-12 w-32 h-12 rotate-45 opacity-70" style={{ backgroundColor: cardSecondaryColor }} />
+                              <div className="absolute top-5 -left-16 w-32.5 h-8 rotate-45 opacity-40 bg-cyan-300" />
                             </div>
-                            <span className="text-[8.5px] font-black text-slate-800 tracking-wider">MyEduRide <span className="text-[#3b82f6] lowercase italic font-bold">enabled</span></span>
-                          </div>
 
-                          {/* Front School Crest/Logo Graphic representation inside background */}
-                          {cardShowLogo && (
-                            <div className="absolute right-8 top-12 w-48 h-48 opacity-[0.06] pointer-events-none z-0 text-slate-700">
-                              {cardLogoType === 'shield_tribal' ? (
-                                <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full"><path d="M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10a10 10 0 0 0 10-10A10 10 0 0 0 12 2M12 4a2 2 0 1 1-2 2a2 2 0 0 1 2-2M8 12h8a4 4 0 0 1-4 4a4 4 0 0 1-4-4Z"/></svg>
-                              ) : (
-                                <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Main School header block */}
-                          <div className="text-center pt-1.5 pl-[48px] pr-[110px] z-20 relative select-none">
-                            <h3 className="text-[20px] font-black tracking-tight leading-tight block truncate text-slate-900" style={{ color: cardPrimaryColor }}>
-                              {selectedPerson ? selectedPerson.schoolName : 'UGBEKUN ACADEMY'}
-                            </h3>
-                            {cardShowAddress && (
-                              <p className="text-[9.5px] text-slate-500 font-extrabold tracking-wider leading-none mt-1 uppercase truncate">
-                                {selectedPerson ? selectedPerson.address : '23 Evbuomwan St, Benin City'}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Large banner title pill */}
-                          <div className="flex justify-center mt-3 z-20 relative select-none">
+                            {/* Top Right "MyEduRide enabled" badge inside CARD layout */}
                             <div 
-                              className="px-8 py-1.5 text-center font-black text-white text-[12.5px] uppercase tracking-widest rounded-full shadow-md min-w-[220px]"
+                              className={`absolute top-4 right-4 z-40 flex items-center gap-1 bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200/80 px-2 py-0.5 rounded-full select-none shadow-xs ${isDragMode ? 'ring-2 ring-indigo-500 ring-offset-1 rounded-sm cursor-grab active:cursor-grabbing' : ''}`}
                               style={{ 
-                                background: `linear-gradient(135deg, ${cardSecondaryColor} 0%, ${cardPrimaryColor} 100%)` 
+                                transform: `translate(${positions.myEduRideBadge.x}px, ${positions.myEduRideBadge.y}px)`,
+                                touchAction: isDragMode ? 'none' : 'auto'
                               }}
+                              onMouseDown={(e) => onMouseDown(e, 'myEduRideBadge')}
+                              onTouchStart={(e) => onTouchStart(e, 'myEduRideBadge')}
+                              title={isDragMode ? 'Drag to position MyEduRide Badge' : undefined}
                             >
-                              {customTitleText}
+                              <div className="w-4 h-4 rounded-full bg-[#1e40af] flex items-center justify-center text-white p-0.5 shadow-sm">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-2.5 h-2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                              </div>
+                              <span className="text-[7.5px] font-black text-slate-800 tracking-wider">MyEduRide <span className="text-[#3b82f6] lowercase italic font-bold">enabled</span></span>
                             </div>
-                          </div>
 
-                          {/* Body portion: Photo & Details Layout block */}
-                          <div className="grid grid-cols-12 gap-4 mt-4.5 items-center z-20 relative select-none">
-                            
-                            {/* Photo Left Part (4 of 12 cols) */}
-                            <div className="col-span-4 flex flex-col items-center">
-                              {cardShowPhoto && (
-                                <div className="w-[104px] h-[116px] rounded-2xl bg-white border-2 border-slate-200/90 flex items-center justify-center shadow-lg relative overflow-hidden shrink-0">
-                                  {selectedPerson && selectedPerson.avatar ? (
-                                    <img 
-                                      src={selectedPerson.avatar} 
-                                      alt={selectedPerson.name} 
-                                      className="w-full h-full object-cover" 
-                                      referrerPolicy="no-referrer"
-                                    />
-                                  ) : (
-                                    <div className="w-full h-full bg-slate-950 flex flex-col items-center justify-center text-white">
-                                      <svg viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8 text-slate-400"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                                    </div>
-                                  )}
-                                  
-                                  {/* Overlaid Role ribbon */}
-                                  <div className="absolute bottom-1 inset-x-1 py-1 bg-slate-900/85 backdrop-blur-xs text-[8px] text-white font-black rounded-lg text-center uppercase tracking-wider block">
-                                    {selectedPerson ? selectedPerson.type : 'Student'}
-                                  </div>
-                                </div>
+                            {/* Front School Crest/Logo Graphic representation inside background */}
+                            {cardShowLogo && (
+                              <div className="absolute right-8 top-12 w-48 h-48 opacity-[0.06] pointer-events-none z-0 text-slate-700">
+                                {cardLogoType === 'shield_tribal' ? (
+                                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full"><path d="M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10a10 10 0 0 0 10-10A10 10 0 0 0 12 2M12 4a2 2 0 1 1-2 2a2 2 0 0 1 2-2M8 12h8a4 4 0 0 1-4 4a4 4 0 0 1-4-4Z"/></svg>
+                                ) : (
+                                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Main School header block */}
+                            <div 
+                              className={`text-center pt-1.5 pl-[36px] pr-[116px] z-30 relative select-none ${isDragMode ? 'ring-2 ring-indigo-500 ring-offset-1 rounded-sm cursor-grab active:cursor-grabbing' : ''}`}
+                              style={{ 
+                                transform: `translate(${positions.schoolHeader.x}px, ${positions.schoolHeader.y}px)`,
+                                touchAction: isDragMode ? 'none' : 'auto'
+                              }}
+                              onMouseDown={(e) => onMouseDown(e, 'schoolHeader')}
+                              onTouchStart={(e) => onTouchStart(e, 'schoolHeader')}
+                              title={isDragMode ? 'Drag to position School Header' : undefined}
+                            >
+                              <h3 className="font-extrabold tracking-tight leading-none block truncate text-slate-900" style={{ color: cardPrimaryColor, fontSize: `${placeholderSizes.schoolHeaderFontSize}px` }}>
+                                {selectedPerson ? selectedPerson.schoolName : 'UGBEKUN ACADEMY'}
+                              </h3>
+                              {cardShowAddress && (
+                                <p className="text-[8.5px] text-slate-500 font-extrabold tracking-wider leading-none mt-1 uppercase truncate">
+                                  {selectedPerson ? selectedPerson.address : '23 Evbuomwan St, Benin City'}
+                                </p>
                               )}
                             </div>
 
-                            {/* Details Portion Middle-Right (8 of 12 cols) */}
-                            <div className="col-span-8 space-y-1.5 pl-1.5">
-                              <div className="grid grid-cols-12 text-[11px] leading-tight">
-                                <span className="col-span-3 text-slate-400 font-extrabold uppercase tracking-widest text-[9px]">Name:</span>
-                                <span className="col-span-9 font-black text-slate-950 uppercase truncate text-[11.5px]">
-                                  {selectedPerson ? selectedPerson.name : 'OLIVIA WILSON'}
-                                </span>
+                            {/* Large banner title pill */}
+                            <div 
+                              className={`flex justify-center mt-2.5 z-30 relative select-none ${isDragMode ? 'ring-2 ring-indigo-500 ring-offset-1 rounded-sm cursor-grab active:cursor-grabbing' : ''}`}
+                              style={{ 
+                                transform: `translate(${positions.titlePill.x}px, ${positions.titlePill.y}px)`,
+                                touchAction: isDragMode ? 'none' : 'auto'
+                              }}
+                              onMouseDown={(e) => onMouseDown(e, 'titlePill')}
+                              onTouchStart={(e) => onTouchStart(e, 'titlePill')}
+                              title={isDragMode ? 'Drag to position Title Pill' : undefined}
+                            >
+                              <div 
+                                className="px-6 py-1 text-center font-black text-white uppercase tracking-wider rounded-md shadow-xs"
+                                style={{ 
+                                  background: `linear-gradient(135deg, ${cardSecondaryColor} 0%, ${cardPrimaryColor} 100%)`,
+                                  minWidth: `${placeholderSizes.titlePillWidth}px`,
+                                  fontSize: `${placeholderSizes.titlePillFontSize}px`
+                                }}
+                              >
+                                {customTitleText}
                               </div>
+                            </div>
+
+                            {/* Body portion: Photo & Details Layout block */}
+                            <div className="flex flex-row gap-4.5 mt-3 items-start z-20 relative select-none w-full">
                               
-                              <div className="grid grid-cols-12 text-[11px] leading-tight">
-                                <span className="col-span-3 text-slate-400 font-extrabold uppercase tracking-widest text-[9px]">Birth:</span>
-                                <span className="col-span-9 font-black text-slate-800 text-[11.5px]">
-                                  {selectedPerson ? selectedPerson.birth : '13/09/2010'}
-                                </span>
-                              </div>
-
-                              <div className="grid grid-cols-12 text-[11px] leading-tight">
-                                <span className="col-span-3 text-slate-400 font-extrabold uppercase tracking-widest text-[9px]">Address:</span>
-                                <span className="col-span-9 font-black text-slate-600 truncate leading-snug uppercase text-[11.5px]">
-                                  {selectedPerson ? selectedPerson.address : '13 BENONI ST., BENIN CITY'}
-                                </span>
-                              </div>
-
-                              <div className="grid grid-cols-12 text-[11px] leading-tight">
-                                <span className="col-span-3 text-slate-400 font-extrabold uppercase tracking-widest text-[9px]">ID No:</span>
-                                <span className="col-span-9 font-mono font-black text-[#1e40af] text-[13px]" style={{ color: cardPrimaryColor }}>
-                                  {selectedPerson ? selectedPerson.idNo : '123-456-7890'}
-                                </span>
-                              </div>
-
-                              {/* Barcode & QR Code cluster block */}
-                              <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 mt-1.5">
-                                {cardShowBarcode ? (
-                                  <div className="flex flex-col items-start leading-none gap-0.5">
-                                    {/* Procedural dynamic barcode vector */}
-                                    <div className="h-[26px] w-[140px] bg-white flex gap-0.5 items-stretch p-0.5 select-none shrink-0 border border-slate-100">
-                                      {[1, 2, 4, 1, 3, 2, 1, 2, 4, 2, 1, 3, 1, 2, 4, 1, 2, 1, 1, 4, 2].map((val, idx) => (
-                                        <div key={idx} className="bg-slate-950 shrink-0" style={{ width: `${val * 1.6}px` }} />
-                                      ))}
-                                    </div>
-                                    <span className="text-[8.5px] font-mono text-slate-400 font-bold tracking-widest block">{selectedPerson?.idNo || '123-456-7890'}</span>
-                                  </div>
-                                ) : <div />}
-
-                                {cardShowQR && (
-                                  <div className="w-13.5 h-13.5 bg-white rounded-lg border border-slate-200/80 flex items-center justify-center p-0.5 shadow-sm shrink-0">
-                                    {qrCodeDataUrl ? (
-                                      <img src={qrCodeDataUrl} alt="QR" className="w-full h-full" />
+                              {/* Photo Left Part */}
+                              <div 
+                                className={`flex-shrink-0 flex flex-col items-center justify-start ${isDragMode ? 'ring-2 ring-indigo-500 ring-offset-1 rounded-sm cursor-grab active:cursor-grabbing' : ''}`}
+                                style={{ 
+                                  transform: `translate(${positions.photoBox.x}px, ${positions.photoBox.y}px)`,
+                                  touchAction: isDragMode ? 'none' : 'auto',
+                                  width: `${placeholderSizes.photoWidth + 8}px`
+                                }}
+                                onMouseDown={(e) => onMouseDown(e, 'photoBox')}
+                                onTouchStart={(e) => onTouchStart(e, 'photoBox')}
+                                title={isDragMode ? 'Drag to position Photo Compartment' : undefined}
+                              >
+                                {cardShowPhoto && (
+                                  <div 
+                                    className="rounded-lg bg-white border border-slate-200/80 flex items-center justify-center shadow-md relative overflow-hidden shrink-0"
+                                    style={{
+                                      width: `${placeholderSizes.photoWidth}px`,
+                                      height: `${placeholderSizes.photoHeight}px`
+                                    }}
+                                  >
+                                    {selectedPerson && selectedPerson.avatar ? (
+                                      <img 
+                                        src={selectedPerson.avatar} 
+                                        alt={selectedPerson.name} 
+                                        className="w-full h-full object-cover" 
+                                        referrerPolicy="no-referrer"
+                                      />
                                     ) : (
-                                      <div className="w-full h-full bg-slate-100 animate-pulse" />
+                                      <div className="w-full h-full bg-slate-950 flex flex-col items-center justify-center text-white">
+                                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-slate-400"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                                      </div>
                                     )}
+                                    
+                                    {/* Overlaid Role ribbon */}
+                                    <div className="absolute bottom-1 inset-x-1 py-0.5 bg-slate-950/85 backdrop-blur-xs text-[7px] text-white font-black rounded-sm text-center uppercase tracking-wider block">
+                                      {selectedPerson ? selectedPerson.type : 'Student'}
+                                    </div>
                                   </div>
                                 )}
                               </div>
+
+                              {/* Details Portion Middle-Right */}
+                              <div className="flex-1 flex flex-col justify-between pl-0.5" style={{ height: `${placeholderSizes.photoHeight}px` }}>
+                                <div 
+                                  className={`space-y-1 w-full ${isDragMode ? 'ring-2 ring-indigo-500 ring-offset-1 rounded-sm cursor-grab active:cursor-grabbing' : ''}`}
+                                  style={{
+                                    transform: `translate(${positions.detailsBlock.x}px, ${positions.detailsBlock.y}px)`,
+                                    touchAction: isDragMode ? 'none' : 'auto'
+                                  }}
+                                  onMouseDown={(e) => onMouseDown(e, 'detailsBlock')}
+                                  onTouchStart={(e) => onTouchStart(e, 'detailsBlock')}
+                                  title={isDragMode ? 'Drag to position Name & Details' : undefined}
+                                >
+                                  <div className="flex flex-row items-center leading-tight font-black" style={{ fontSize: `${placeholderSizes.detailsFontSize}px` }}>
+                                    <span className="w-[50px] text-slate-400 font-extrabold uppercase tracking-widest text-[8px] shrink-0">Name:</span>
+                                    <span className="flex-grow font-black text-slate-950 uppercase truncate" style={{ fontSize: `${placeholderSizes.detailsFontSize + 0.5}px` }}>
+                                      {selectedPerson ? selectedPerson.name : 'OLIVIA WILSON'}
+                                    </span>
+                                  </div>
+                                  
+                                  <div className="flex flex-row items-center leading-tight" style={{ fontSize: `${placeholderSizes.detailsFontSize}px` }}>
+                                    <span className="w-[50px] text-slate-400 font-extrabold uppercase tracking-widest text-[8px] shrink-0">Birth:</span>
+                                    <span className="flex-grow font-black text-slate-800" style={{ fontSize: `${placeholderSizes.detailsFontSize}px` }}>
+                                      {selectedPerson ? selectedPerson.birth : '13/09/2010'}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex flex-row items-center leading-tight" style={{ fontSize: `${placeholderSizes.detailsFontSize}px` }}>
+                                    <span className="w-[50px] text-slate-400 font-extrabold uppercase tracking-widest text-[8px] shrink-0">Address:</span>
+                                    <span className="flex-grow font-black text-slate-600 truncate uppercase" style={{ fontSize: `${placeholderSizes.detailsFontSize - 0.5}px` }}>
+                                      {selectedPerson ? selectedPerson.address : '13 BENONI ST., BENIN CITY'}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex flex-row items-center leading-tight" style={{ fontSize: `${placeholderSizes.detailsFontSize}px` }}>
+                                    <span className="w-[50px] text-slate-400 font-extrabold uppercase tracking-widest text-[8px] shrink-0">ID No:</span>
+                                    <span className="flex-grow font-mono font-black text-[#1e40af] uppercase" style={{ color: cardPrimaryColor, fontSize: `${placeholderSizes.detailsFontSize + 1}px` }}>
+                                      {selectedPerson ? selectedPerson.idNo : '123-456-7890'}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Barcode & QR Code cluster block */}
+                                <div className="flex items-center justify-between pt-1 border-t border-slate-100 mt-1">
+                                  {cardShowBarcode ? (
+                                    <div 
+                                      className={`flex flex-col items-start leading-none gap-0.5 ${isDragMode ? 'ring-2 ring-indigo-500 ring-offset-1 rounded-sm cursor-grab active:cursor-grabbing' : ''}`}
+                                      style={{
+                                        transform: `translate(${positions.barcodeBlock.x}px, ${positions.barcodeBlock.y}px)`,
+                                        touchAction: isDragMode ? 'none' : 'auto'
+                                      }}
+                                      onMouseDown={(e) => onMouseDown(e, 'barcodeBlock')}
+                                      onTouchStart={(e) => onTouchStart(e, 'barcodeBlock')}
+                                                        >
+                                      {/* Procedural dynamic barcode vector */}
+                                      <div 
+                                        className="bg-white flex gap-0.5 items-stretch p-0.5 select-none shrink-0 border border-slate-100"
+                                        style={{
+                                          width: `${placeholderSizes.barcodeWidth}px`,
+                                          height: `${placeholderSizes.barcodeHeight}px`
+                                        }}
+                                      >
+                                        {[1, 2, 4, 1, 3, 2, 1, 2, 4, 2, 1, 3, 1, 2, 4, 1, 2, 1, 1, 4, 2, 1, 2].map((val, idx) => (
+                                          <div key={idx} className="bg-slate-950 shrink-0" style={{ width: `${val * 1.1}px` }} />
+                                        ))}
+                                      </div>
+                                      <span className="text-[7.5px] font-mono text-slate-400 font-bold tracking-widest block mt-0.5">{selectedPerson?.idNo || '123-456-7890'}</span>
+                                    </div>
+                                  ) : <div />}
+ 
+                                  {cardShowQR && (
+                                    <div 
+                                      className={`bg-white rounded-md border border-slate-200/80 flex items-center justify-center p-0.5 shadow-sm shrink-0 ${isDragMode ? 'ring-2 ring-indigo-500 ring-offset-1 rounded-sm cursor-grab active:cursor-grabbing' : ''}`}
+                                      style={{
+                                        transform: `translate(${positions.qrBlock.x}px, ${positions.qrBlock.y}px)`,
+                                        touchAction: isDragMode ? 'none' : 'auto',
+                                        width: `${placeholderSizes.qrSize}px`,
+                                        height: `${placeholderSizes.qrSize}px`
+                                      }}
+                                      onMouseDown={(e) => onMouseDown(e, 'qrBlock')}
+                                      onTouchStart={(e) => onTouchStart(e, 'qrBlock')}
+                                      title={isDragMode ? 'Drag to position QR Code' : undefined}
+                                    >
+                                      {qrCodeDataUrl ? (
+                                        <img src={qrCodeDataUrl} alt="QR" className="w-full h-full" />
+                                      ) : (
+                                        <div className="w-full h-full bg-slate-100 animate-pulse" />
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
                             </div>
 
-                          </div>
-
-                          {/* Benin Tribal mask / Graduation Cap corner visual emblem on bottom margin */}
-                          <div className="absolute left-4 bottom-3 z-30 flex items-center gap-1.5 opacity-90 select-none">
-                            {cardLogoType === 'shield_tribal' ? (
-                              <div className="w-8 h-10 rounded-lg flex items-center justify-center shrink-0 shadow-md p-1 relative z-10 text-white" style={{ backgroundColor: cardPrimaryColor }}>
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-full h-full"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM12 11h.01M10 8h4v4h-4z"/></svg>
-                              </div>
-                            ) : (
-                              <GraduationCap size={16} className="text-slate-400" />
-                            )}
-                            <span className="text-[7px] text-slate-400 font-extrabold uppercase tracking-widest">Secure partition</span>
-                          </div>
-                        </motion.div>
-                      )}
+                            {/* Benin Tribal mask / Graduation Cap corner visual emblem on bottom margin */}
+                            <div 
+                              className={`absolute left-4 bottom-3 z-30 flex items-center gap-1.5 opacity-90 select-none ${isDragMode ? 'ring-2 ring-indigo-500 ring-offset-1 rounded-sm cursor-grab active:cursor-grabbing' : ''}`}
+                              style={{
+                                transform: `translate(${positions.secureBadge.x}px, ${positions.secureBadge.y}px)`,
+                                touchAction: isDragMode ? 'none' : 'auto'
+                              }}
+                              onMouseDown={(e) => onMouseDown(e, 'secureBadge')}
+                              onTouchStart={(e) => onTouchStart(e, 'secureBadge')}
+                              title={isDragMode ? 'Drag to position Secure Badge' : undefined}
+                            >
+                              {cardLogoType === 'shield_tribal' ? (
+                                <div className="w-8 h-10 rounded-lg flex items-center justify-center shrink-0 shadow-md p-1 relative z-10 text-white" style={{ backgroundColor: cardPrimaryColor }}>
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-full h-full"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM12 11h.01M10 8h4v4h-4z"/></svg>
+                                </div>
+                              ) : (
+                                <GraduationCap size={16} className="text-slate-400" />
+                              )}
+                              <span className="text-[7px] text-slate-400 font-extrabold uppercase tracking-widest">Secure partition</span>
+                            </div>
+                          </motion.div>
+                        )}
 
                       {/* BACK SIDE OF ID CARD */}
                       {(cardLayoutSide === 'dual' || cardLayoutSide === 'back') && (
                         <motion.div
+                          id="card-back-side"
                           initial={{ scale: 0.97, opacity: 0 }}
                           animate={{ scale: 1, opacity: 1 }}
-                          className="w-full max-w-[560px] aspect-[1.58/1] bg-white rounded-[28px] shadow-2xl border-2 border-slate-200/90 p-6 relative overflow-hidden select-none shrink-0"
+                          className="w-[480px] h-[304px] bg-white rounded-[24px] shadow-2xl border border-slate-200/90 p-5.5 relative overflow-hidden select-none shrink-0"
                           style={{ backgroundColor: cardBgColor }}
                         >
                           {/* Graduation Cap geometric backdrop pattern watermark */}
@@ -2202,14 +2810,23 @@ export default function SuperAdminDashboard() {
                           </svg>
 
                           {/* Outer card framing decoration */}
-                          <div className="absolute top-0 right-0 w-[160px] h-[160px] pointer-events-none opacity-25 overflow-hidden">
-                            <div className="absolute -top-10 -right-10 w-32 h-32 rotate-45" style={{ backgroundColor: cardPrimaryColor }} />
+                          <div className="absolute top-0 right-0 w-[130px] h-[130px] pointer-events-none opacity-25 overflow-hidden">
+                            <div className="absolute -top-10 -right-10 w-28 h-28 rotate-45" style={{ backgroundColor: cardPrimaryColor }} />
                           </div>
 
                           {/* Top Centered School Logo & Metadata */}
-                          <div className="flex flex-col items-center pt-2 select-none z-10 relative">
+                          <div 
+                            className={`flex flex-col items-center pt-2 select-none z-30 relative ${isDragMode ? 'ring-2 ring-indigo-500 ring-offset-1 rounded-sm cursor-grab active:cursor-grabbing' : ''}`}
+                            style={{ 
+                              transform: `translate(${positions.backHeader.x}px, ${positions.backHeader.y}px)`,
+                              touchAction: isDragMode ? 'none' : 'auto'
+                            }}
+                            onMouseDown={(e) => onMouseDown(e, 'backHeader')}
+                            onTouchStart={(e) => onTouchStart(e, 'backHeader')}
+                            title={isDragMode ? 'Drag to position Back Header' : undefined}
+                          >
                             {/* Crest in Shield */}
-                            <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white shadow-lg p-2.5" style={{ backgroundColor: cardPrimaryColor }}>
+                            <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-lg p-2" style={{ backgroundColor: cardPrimaryColor }}>
                               {cardLogoType === 'shield_tribal' ? (
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-full h-full"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM12 11h.01M10 8h4v4h-4z"/></svg>
                               ) : (
@@ -2217,40 +2834,58 @@ export default function SuperAdminDashboard() {
                               )}
                             </div>
                             
-                            <h4 className="text-[18px] font-black tracking-tight mt-2 text-slate-900 uppercase leading-none" style={{ color: cardPrimaryColor }}>
+                            <h4 className="text-[15px] font-extrabold tracking-tight mt-1.5 text-slate-900 uppercase leading-none" style={{ color: cardPrimaryColor }}>
                               {selectedPerson ? selectedPerson.schoolName : 'UGBEKUN ACADEMY'}
                             </h4>
-                            <p className="text-[9.5px] text-slate-400 font-black tracking-widest uppercase mt-1">
+                            <p className="text-[8.5px] text-slate-400 font-extrabold tracking-wider uppercase mt-1">
                               {selectedPerson ? selectedPerson.address : '23 Evbuomwan St, GRA, Benin City'}
                             </p>
                           </div>
 
                           {/* Mid Section: Authorised Signature and Return Instructions Box */}
-                          <div className="grid grid-cols-2 gap-4 mt-6 z-10 relative px-2">
+                          <div className="grid grid-cols-2 gap-3.5 mt-4.5 z-10 relative px-2.5">
                             
                             {/* Authorised Signature Capsule */}
-                            <div className="flex flex-col items-center">
-                              <span className="text-[9.5px] font-black uppercase text-slate-400 tracking-wider mb-1">Authorised Signature</span>
+                            <div 
+                              className={`flex flex-col items-center ${isDragMode ? 'ring-2 ring-indigo-500 ring-offset-1 rounded-sm cursor-grab active:cursor-grabbing' : ''}`}
+                              style={{ 
+                                transform: `translate(${positions.signatureBlock.x}px, ${positions.signatureBlock.y}px)`,
+                                touchAction: isDragMode ? 'none' : 'auto'
+                              }}
+                              onMouseDown={(e) => onMouseDown(e, 'signatureBlock')}
+                              onTouchStart={(e) => onTouchStart(e, 'signatureBlock')}
+                              title={isDragMode ? 'Drag to position Signature' : undefined}
+                            >
+                              <span className="text-[8.5px] font-black uppercase text-slate-400 tracking-wider mb-0.5">Authorised Signature</span>
                               {cardShowSignature ? (
-                                <div className="w-full h-14 bg-slate-50 border border-slate-200/80 rounded-xl flex flex-col items-center justify-center p-1 shadow-inner relative overflow-hidden">
+                                <div className="w-full h-11 bg-slate-50 border border-slate-200/80 rounded-lg flex flex-col items-center justify-center p-0.5 shadow-inner relative overflow-hidden">
                                   {/* Cursive Principal signature SVG */}
-                                  <svg viewBox="0 0 100 35" className="w-28 h-10 text-[#1e40af] fill-none stroke-current" strokeWidth="1.8" strokeLinecap="round">
+                                  <svg viewBox="0 0 100 35" className="w-24 h-7 text-[#1e40af] fill-none stroke-current" strokeWidth="1.8" strokeLinecap="round">
                                     <path d="M10 25 C25 5, 45 30, 50 15 C55 4, 75 8, 85 20 M35 15 L65 15" />
                                   </svg>
-                                  <span className="text-[8.5px] font-bold text-slate-500 absolute bottom-0.5 font-sans leading-none">Principal</span>
+                                  <span className="text-[7px] font-bold text-slate-500 absolute bottom-0.5 font-sans leading-none">Principal</span>
                                 </div>
                               ) : (
-                                <div className="w-full h-14 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 text-[9px] font-bold uppercase border border-dashed border-slate-300">
+                                <div className="w-full h-11 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 text-[8px] font-bold uppercase border border-dashed border-slate-300">
                                   Disabled
                                 </div>
                               )}
                             </div>
 
                             {/* Return Instructions Capsule */}
-                            <div className="flex flex-col items-stretch">
-                              <span className="text-[9.5px] font-black uppercase text-slate-400 tracking-wider mb-1 text-center">Security Return</span>
-                              <div className="h-14 bg-slate-50 border border-slate-200/60 rounded-xl p-2 flex flex-col justify-center items-center shadow-inner leading-tight text-center">
-                                <p className="text-[9px] text-slate-600 font-extrabold max-w-[200px]">
+                            <div 
+                              className={`flex flex-col items-stretch ${isDragMode ? 'ring-2 ring-indigo-500 ring-offset-1 rounded-sm cursor-grab active:cursor-grabbing' : ''}`}
+                              style={{ 
+                                transform: `translate(${positions.returnBox.x}px, ${positions.returnBox.y}px)`,
+                                touchAction: isDragMode ? 'none' : 'auto'
+                              }}
+                              onMouseDown={(e) => onMouseDown(e, 'returnBox')}
+                              onTouchStart={(e) => onTouchStart(e, 'returnBox')}
+                              title={isDragMode ? 'Drag to position Return Instructions' : undefined}
+                            >
+                              <span className="text-[8.5px] font-black uppercase text-slate-400 tracking-wider mb-0.5 text-center">Security Return</span>
+                              <div className="h-11 bg-slate-50 border border-slate-200/60 rounded-lg p-1.5 flex flex-col justify-center items-center shadow-inner leading-tight text-center">
+                                <p className="text-[8px] text-slate-600 font-extrabold max-w-[190px]">
                                   {cardReturnInstructions}
                                 </p>
                               </div>
@@ -2260,8 +2895,17 @@ export default function SuperAdminDashboard() {
 
                           {/* Absolute Base Disclaimer Banner on light-shadow strip */}
                           {cardShowDisclaimer && (
-                            <div className="absolute bottom-0 inset-x-0 bg-slate-100 border-t border-slate-250 py-3 px-5 z-20 shadow-inner select-none relative mt-4">
-                              <p className="text-[9px] text-slate-800 text-center uppercase tracking-wide font-black leading-normal leading-snug">
+                            <div 
+                              className={`absolute bottom-0 inset-x-0 bg-slate-100 border-t border-slate-200 py-2.5 px-4 z-30 shadow-inner select-none ${isDragMode ? 'ring-2 ring-indigo-500 ring-offset-1 rounded-sm cursor-grab active:cursor-grabbing' : ''}`}
+                              style={{ 
+                                transform: `translate(${positions.disclaimerBlock.x}px, ${positions.disclaimerBlock.y}px)`,
+                                touchAction: isDragMode ? 'none' : 'auto'
+                              }}
+                              onMouseDown={(e) => onMouseDown(e, 'disclaimerBlock')}
+                              onTouchStart={(e) => onTouchStart(e, 'disclaimerBlock')}
+                              title={isDragMode ? 'Drag to position Disclaimer' : undefined}
+                            >
+                              <p className="text-[8px] text-slate-800 text-center uppercase tracking-wide font-black leading-snug">
                                 {cardDisclaimerText}
                               </p>
                             </div>
@@ -2269,36 +2913,386 @@ export default function SuperAdminDashboard() {
 
                           {/* Top-Right Mini Logo */}
                           <div className="absolute right-4 top-4 opacity-15">
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2c5.523 0 10 4.477 10 10s-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2Z"/><path d="m9 12 2 2 4-4"/></svg>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2c5.523 0 10 4.477 10 10s-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2Z"/><path d="m9 12 2 2 4-4"/></svg>
                           </div>
                         </motion.div>
                       )}
                     </div>
+                  </div>
 
                     {/* Single card Quick Print Action */}
-                    <div className="mt-5.5 flex gap-2 w-full max-w-sm select-none">
+                    <div className="mt-5.5 flex flex-col sm:flex-row gap-2 w-full max-w-sm select-none">
                       <button
                         type="button"
                         onClick={() => {
-                          showToast(`Initiating direct card compiler for ${selectedPerson?.name || 'Visitor'}...`, 'success');
+                          showToast(`Initiating system print dialog...`, 'success');
                           if (typeof window !== 'undefined') {
                             window.print();
                           }
                         }}
-                        className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-950 text-white font-extrabold text-xs uppercase rounded-xl border-none cursor-pointer text-center transition flex items-center justify-center gap-1.5 shadow-md"
+                        className="flex-1 py-2 bg-slate-950 hover:bg-slate-900 text-white font-extrabold text-[10.5px] uppercase rounded-xl border-none cursor-pointer text-center transition flex items-center justify-center gap-1.5 shadow-md"
                       >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                        <span>Print active card</span>
+                        <span>Print preview</span>
                       </button>
+
                       <button
                         type="button"
                         onClick={() => {
-                          showToast('Digital dual pass asset downloaded successfully', 'success');
+                          if (!selectedPerson) return;
+                          showToast(`Compiling high-fidelity card PDF...`, 'success');
+                          
+                          Promise.all([
+                            import('jspdf'),
+                            import('html2canvas'),
+                            import('qrcode')
+                          ]).then(async ([jsPDFModule, html2canvasModule, qrcodeModule]) => {
+                            const jsPDF = jsPDFModule.default;
+                            const html2canvas = html2canvasModule.default;
+                            const QRCode = qrcodeModule.default || qrcodeModule;
+
+                            const pdf = new jsPDF({
+                              orientation: 'landscape',
+                              unit: 'mm',
+                              format: [100.6, 70.98] // Landscape dimensions format
+                            });
+
+                            const printGroup = document.createElement('div');
+                            printGroup.style.position = 'fixed';
+                            printGroup.style.bottom = '0px';
+                            printGroup.style.right = '0px';
+                            printGroup.style.zIndex = '-9999';
+                            printGroup.style.opacity = '0.01';
+                            printGroup.style.pointerEvents = 'none';
+                            printGroup.style.width = '480px';
+                            printGroup.style.height = '304px';
+                            document.body.appendChild(printGroup);
+
+                            const waitForImages = (element: HTMLElement) => {
+                              const imgs = Array.from(element.querySelectorAll('img'));
+                              const promises = imgs.map(img => {
+                                if (img.complete) return Promise.resolve();
+                                return new Promise<void>(resolve => {
+                                  img.onload = () => resolve();
+                                  img.onerror = () => resolve();
+                                });
+                              });
+                              return Promise.all(promises);
+                            };
+
+                            try {
+                              const item = selectedPerson;
+                              // Match unique QR verify text matching backend format exactly
+                              const qrText = `https://myeduride.com/verify/${item.type?.toLowerCase() || 'student'}/${encodeURIComponent(item.idNo || item.id || 'unknown')}`;
+                              const qrDataUrl = await QRCode.toDataURL(qrText, { margin: 1, width: 140 });
+
+                              const matchedSchoolObj = schools.find(s => s.name.toLowerCase().trim() === item.schoolName.toLowerCase().trim());
+                              const pColor = matchedSchoolObj?.primary_color || cardPrimaryColor || '#1e40af';
+                              const sColor = matchedSchoolObj?.secondary_color || cardSecondaryColor || '#3b82f6';
+
+                              let isFirstPage = true;
+
+                              // --- FRONT SIDE ---
+                              if (cardLayoutSide === 'dual' || cardLayoutSide === 'front') {
+                                const frontCard = document.createElement('div');
+                                frontCard.style.width = '480px';
+                                frontCard.style.height = '304px';
+                                frontCard.style.backgroundColor = cardBgColor;
+                                frontCard.style.borderRadius = '24px';
+                                frontCard.style.position = 'relative';
+                                frontCard.style.overflow = 'hidden';
+                                frontCard.style.boxSizing = 'border-box';
+                                frontCard.style.border = '1px solid rgba(226, 232, 240, 0.9)';
+                                frontCard.style.fontFamily = 'system-ui, -apple-system, sans-serif';
+                                frontCard.style.padding = '22px';
+
+                                frontCard.innerHTML = `
+                                  <div style="position: absolute; top:0; left:0; width:140px; height:140px; pointer-events:none; z-index:10; opacity:0.9; overflow:hidden;">
+                                    <div style="position: absolute; top:-40px; left:-40px; width:112px; height:112px; transform:rotate(45deg); background-color:${pColor};"></div>
+                                    <div style="position: absolute; top:0; left:-48px; width:112px; height:40px; transform:rotate(45deg); opacity:0.7; background-color:${sColor};"></div>
+                                    <div style="position: absolute; top:20px; left:-64px; width:114px; height:24px; transform:rotate(45deg); opacity:0.4; background-color:#67e8f9;"></div>
+                                  </div>
+
+                                  <div style="position: absolute; top:16px; right:16px; z-index:10; display:flex; align-items:center; gap:4px; background:linear-gradient(to right, #f8fafc, #f1f5f9); border:1px solid rgba(226,232,240,0.8); padding:2px 8px; border-radius:9999px; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
+                                    <div style="width:16px; height:16px; border-radius:50%; background-color:#1e40af; display:flex; align-items:center; justify-content:center; color:#ffffff; padding:2px;">
+                                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="width:10px; height:10px;"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                                    </div>
+                                    <span style="font-size:7.5px; font-weight:900; color:#1e293b; letter-spacing:0.05em; font-family:sans-serif;">MyEduRide <span style="color:#3b82f6; font-style:italic; font-weight:bold;">enabled</span></span>
+                                  </div>
+
+                                  ${cardShowLogo ? `
+                                    <div style="position: absolute; right:32px; top:48px; width:160px; height:160px; opacity:0.05; pointer-events:none; z-index:0; color:#334155;">
+                                      ${cardLogoType === 'shield_tribal' ? `
+                                        <svg viewBox="0 0 24 24" fill="currentColor" style="width:100%; height:100%;"><path d="M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10a10 10 0 0 0 10-10A10 10 0 0 0 12 2M12 4a2 2 0 1 1-2 2a2 2 0 0 1 2-2M8 12h8a4 4 0 0 1-4 4a4 4 0 0 1-4-4Z"/></svg>
+                                      ` : `
+                                        <svg viewBox="0 0 24 24" fill="currentColor" style="width:100%; height:100%;"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                                      `}
+                                    </div>
+                                  ` : ''}
+
+                                  <div style="text-align:center; padding-top:6px; padding-left:36px; padding-right:116px; z-index:20; position:relative; box-sizing:border-box;">
+                                    <h3 style="font-size:17px; font-weight:800; margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:${pColor}; text-transform:uppercase;">
+                                      ${item.schoolName}
+                                    </h3>
+                                    ${cardShowAddress ? `
+                                      <p style="font-size:8.5px; margin:2px 0 0 0; color:#64748b; font-weight:800; letter-spacing:0.05em; text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                                        ${item.address}
+                                      </p>
+                                    ` : ''}
+                                  </div>
+
+                                  <div style="display:flex; justify-content:center; margin-top:10px; z-index:20; position:relative;">
+                                    <div style="padding:4px 24px; text-align:center; font-weight:900; color:#ffffff; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; border-radius:6px; min-width:180px; box-sizing:border-box; background:linear-gradient(135deg, ${sColor} 0%, ${pColor} 100%);">
+                                      ${customTitleText}
+                                    </div>
+                                  </div>
+
+                                  <div style="display:flex; flex-direction:row; gap:18px; margin-top:14px; align-items:start; z-index:20; position:relative; box-sizing:border-box; width:100%;">
+                                    <div style="width:100px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; box-sizing:border-box;">
+                                      ${cardShowPhoto ? `
+                                        <div style="width:88px; height:106px; border-radius:12px; background-color:#ffffff; border:1px solid #e2e8f0; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);">
+                                          ${item.avatar ? `
+                                            <img src="${item.avatar}" style="width:100%; height:100%; object-fit:cover;" />
+                                          ` : `
+                                            <div style="width:100%; height:100%; background-color:#020617; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#94a3b8;">
+                                              <svg viewBox="0 0 24 24" fill="currentColor" style="width:24px; height:24px;"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                                            </div>
+                                          `}
+                                          
+                                          <div style="position: absolute; bottom:6px; left:6px; right:6px; padding:4px 0; background-color:rgba(15,23,42,0.85); backdrop-filter:blur(4px); font-size:8px; color:#ffffff; font-weight:900; border-radius:6px; text-align:center; text-transform:uppercase; letter-spacing:0.05em;">
+                                            ${item.type}
+                                          </div>
+                                        </div>
+                                      ` : ''}
+                                    </div>
+
+                                    <div style="flex:1; display:flex; flex-direction:column; justify-content:space-between; height:106px; box-sizing:border-box;">
+                                      <div style="display:flex; flex-direction:column; gap:5px;">
+                                        <div style="display:flex; flex-direction:row; font-size:10.5px; line-height:1.25;">
+                                          <span style="width:50px; color:#94a3b8; font-weight:800; text-transform:uppercase; font-size:8px; letter-spacing:0.05em; flex-shrink:0;">Name:</span>
+                                          <span style="font-weight:900; color:#0f172a; text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex-grow:1;">${item.name}</span>
+                                        </div>
+
+                                        <div style="display:flex; flex-direction:row; font-size:10.5px; line-height:1.25;">
+                                          <span style="width:50px; color:#94a3b8; font-weight:800; text-transform:uppercase; font-size:8px; letter-spacing:0.05em; flex-shrink:0;">Birth:</span>
+                                          <span style="font-weight:900; color:#1e293b; flex-grow:1;">${item.birth || '12/04/2012'}</span>
+                                        </div>
+
+                                        <div style="display:flex; flex-direction:row; font-size:10.5px; line-height:1.25;">
+                                          <span style="width:50px; color:#94a3b8; font-weight:800; text-transform:uppercase; font-size:8px; letter-spacing:0.05em; flex-shrink:0;">Address:</span>
+                                          <span style="font-weight:800; color:#475569; text-transform:uppercase; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex-grow:1;">${item.address}</span>
+                                        </div>
+
+                                        <div style="display:flex; flex-direction:row; font-size:10.5px; line-height:1.25;">
+                                          <span style="width:50px; color:#94a3b8; font-weight:800; text-transform:uppercase; font-size:8px; letter-spacing:0.05em; flex-shrink:0;">ID No:</span>
+                                          <span style="font-weight:900; color:${pColor}; font-family:monospace; font-size:12px; flex-grow:1;">${item.idNo}</span>
+                                        </div>
+                                      </div>
+
+                                      <div style="display:flex; flex-direction:row; align-items:flex-end; justify-content:space-between; border-top:1px solid #f1f5f9; padding-top:6px; margin-top:2px; box-sizing:border-box; width:100%;">
+                                        ${cardShowBarcode ? `
+                                          <div style="display:flex; flex-direction:column; align-items:start; gap:2px; box-sizing:border-box;">
+                                            <div style="height:18px; width:130px; background-color:#ffffff; border:1px solid #f1f5f9; padding:2px; display:flex; gap:1.2px; box-sizing:border-box; overflow:hidden;">
+                                              ${[1, 2, 4, 1, 3, 2, 1, 2, 4, 2, 1, 3, 1, 2, 4, 1, 2, 1, 1, 4, 2, 1, 2].map(val => `
+                                                <div style="background-color:#020617; width:${val * 1.1}px; height:100%;"></div>
+                                              `).join('')}
+                                            </div>
+                                            <span style="font-size:7.5px; font-family:monospace; color:#94a3b8; font-weight:bold; letter-spacing:0.05em;">${item.idNo}</span>
+                                          </div>
+                                        ` : '<div></div>'}
+
+                                        ${cardShowQR ? `
+                                          <div style="width:40px; height:40px; background-color:#ffffff; border:1px solid rgba(226,232,240,0.8); border-radius:6px; display:flex; align-items:center; justify-content:center; padding:2px; box-sizing:border-box; flex-shrink:0;">
+                                            <img src="${qrDataUrl}" style="width:100%; height:100%;" />
+                                          </div>
+                                        ` : ''}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div style="position: absolute; left:22px; bottom:20px; display:flex; align-items:center; gap:6px; opacity:0.9; pointer-events:none;">
+                                    ${cardLogoType === 'shield_tribal' ? `
+                                      <div style="width:18px; height:20px; border-radius:4px; display:flex; align-items:center; justify-content:center; color:#ffffff; background-color:${pColor}; padding:2.5px; box-sizing:border-box;">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:100%; height:100%;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM12 11h.01M10 8h4v4h-4z"/></svg>
+                                      </div>
+                                    ` : `
+                                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:14px; height:14px; color:#94a3b8;"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 2 3 6 3s6-1 6-3v-5"/></svg>
+                                    `}
+                                    <span style="font-size:7px; color:#94a3b8; font-weight:800; text-transform:uppercase; letter-spacing:0.05em;">Secure partition</span>
+                                  </div>
+                                `;
+
+                                printGroup.appendChild(frontCard);
+                                isFirstPage = false;
+
+                                await new Promise(r => setTimeout(r, 200));
+                                await waitForImages(frontCard);
+
+                                const canvas = await html2canvas(frontCard, { scale: 3, useCORS: true });
+                                const imgData = canvas.toDataURL('image/png');
+                                pdf.addImage(imgData, 'PNG', 0, 0, 100.6, 70.98);
+
+                                printGroup.removeChild(frontCard);
+                              }
+
+                              // --- BACK SIDE ---
+                              if (cardLayoutSide === 'dual' || cardLayoutSide === 'back') {
+                                const backCard = document.createElement('div');
+                                backCard.style.width = '480px';
+                                backCard.style.height = '304px';
+                                backCard.style.backgroundColor = cardBgColor;
+                                backCard.style.borderRadius = '24px';
+                                backCard.style.position = 'relative';
+                                backCard.style.overflow = 'hidden';
+                                backCard.style.boxSizing = 'border-box';
+                                backCard.style.border = '1px solid rgba(226, 232, 240, 0.9)';
+                                backCard.style.fontFamily = 'system-ui, -apple-system, sans-serif';
+                                backCard.style.padding = '22px';
+
+                                backCard.innerHTML = `
+                                  <div style="position: absolute; inset:0; opacity:0.03; pointer-events:none; color:#1e293b; display:flex; align-items:center; justify-content:center;">
+                                    <svg viewBox="0 0 24 24" fill="currentColor" style="width:300px; height:300px;">
+                                      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                                    </svg>
+                                  </div>
+
+                                  <div style="position: absolute; top:0; right:0; width:130px; height:130px; pointer-events:none; opacity:0.25; overflow:hidden;">
+                                    <div style="position: absolute; top:-40px; right:-40px; width:112px; height:112px; transform:rotate(45deg); background-color:${pColor};"></div>
+                                  </div>
+
+                                  <div style="display:flex; flex-direction:column; align-items:center; padding-top:10px; position:relative; z-index:10; box-sizing:border-box;">
+                                    <div style="width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; color:#ffffff; background-color:${pColor}; box-shadow:0 10px 15px -3px rgba(0,0,0,0.1); padding:8px; box-sizing:border-box;">
+                                      ${cardLogoType === 'shield_tribal' ? `
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:100%; height:100%;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM12 11h.01M10 8h4v4h-4z"/></svg>
+                                      ` : `
+                                        <svg viewBox="0 0 24 24" fill="currentColor" style="width:100%; height:100%;"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                                      `}
+                                    </div>
+                                    <h4 style="font-size:15px; font-weight:800; margin:6px 0 0 0; color:${pColor}; text-transform:uppercase; text-align:center;">
+                                      ${item.schoolName}
+                                    </h4>
+                                    <p style="font-size:8.5px; font-weight:700; margin:4px 0 0 0; color:#94a3b8; letter-spacing:0.05em; text-transform:uppercase; text-align:center;">
+                                      ${item.address}
+                                    </p>
+                                  </div>
+
+                                  <div style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:14px; margin-top:16px; position:relative; z-index:10; padding:0 24px; box-sizing:border-box;">
+                                    <div style="display:flex; flex-direction:column; align-items:center; box-sizing:border-box;">
+                                      <span style="font-size:8.5px; font-weight:900; text-transform:uppercase; color:#94a3b8; letter-spacing:0.05em; margin-bottom:4px;">Authorised Signature</span>
+                                      ${cardShowSignature ? `
+                                        <div style="width:100%; height:44px; background-color:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:4px; box-sizing:border-box; position:relative; overflow:hidden; box-shadow:inset 0 2px 4px 0 rgba(0,0,0,0.02);">
+                                          <svg viewBox="0 0 100 35" style="width:96px; height:28px; color:#1e40af; fill:none; stroke:currentColor;" stroke-width="1.8" stroke-linecap="round">
+                                            <path d="M10 25 C25 5, 45 30, 50 15 C55 4, 75 8, 85 20 M35 15 L65 15" />
+                                          </svg>
+                                          <span style="font-size:7px; font-weight:700; color:#64748b; position:absolute; bottom:2px;">Principal</span>
+                                        </div>
+                                      ` : `
+                                        <div style="width:100%; height:44px; background-color:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:8px; font-weight:800; text-transform:uppercase; border-style:dashed; box-sizing:border-box;">
+                                          Disabled
+                                        </div>
+                                      `}
+                                    </div>
+
+                                    <div style="display:flex; flex-direction:column; align-items:stretch; box-sizing:border-box;">
+                                      <span style="font-size:8.5px; font-weight:900; text-transform:uppercase; color:#94a3b8; letter-spacing:0.05em; margin-bottom:4px; text-align:center;">Security Return</span>
+                                      <div style="height:44px; background-color:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:6px; display:flex; flex-direction:column; justify-content:center; align-items:center; box-sizing:border-box; box-shadow:inset 0 2px 4px 0 rgba(0,0,0,0.02); text-align:center;">
+                                        <p style="font-size:8px; color:#475569; font-weight:800; margin:0; line-height:1.25; max-w:190px;">
+                                          ${cardReturnInstructions}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  ${cardShowDisclaimer ? `
+                                    <div style="position: absolute; bottom:0; left:0; right:0; background-color:#f1f5f9; border-top:1px solid #e2e8f0; padding:10px 16px; box-sizing:border-box; z-index:20; box-shadow:inset 0 2px 4px 0 rgba(0,0,0,0.01);">
+                                      <p style="font-size:8px; color:#1e293b; text-align:center; text-transform:uppercase; letter-spacing:0.02em; font-weight:900; margin:0; line-height:1.3;">
+                                        ${cardDisclaimerText}
+                                      </p>
+                                    </div>
+                                  ` : ''}
+
+                                  <div style="position: absolute; right:16px; top:16px; opacity:0.15; pointer-events:none;">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:#0f172a;"><path d="M12 2c5.523 0 10 4.477 10 10s-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2Z"/><path d="m9 12 2 2 4-4"/></svg>
+                                  </div>
+                                `;
+
+                                if (!isFirstPage) {
+                                  pdf.addPage();
+                                }
+                                printGroup.appendChild(backCard);
+
+                                await new Promise(r => setTimeout(r, 200));
+                                await waitForImages(backCard);
+
+                                const canvas = await html2canvas(backCard, { scale: 3, useCORS: true });
+                                const imgData = canvas.toDataURL('image/png');
+                                pdf.addImage(imgData, 'PNG', 0, 0, 100.6, 70.98);
+
+                                printGroup.removeChild(backCard);
+                              }
+
+                              pdf.save(`myeduride-card-${item.name.replace(/\s+/g, '-').toLowerCase()}.pdf`);
+                              showToast('Personal Card PDF downloaded successfully!', 'success');
+                            } catch (err) {
+                              console.error('Active card PDF generation error:', err);
+                              showToast('Card compile failed. Check console error logs.', 'error');
+                            } finally {
+                              if (printGroup && printGroup.parentNode) {
+                                document.body.removeChild(printGroup);
+                              }
+                            }
+                          });
                         }}
-                        className="px-4.5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 text-xs font-bold rounded-xl cursor-pointer text-center transition flex items-center justify-center gap-1"
+                        className="px-3 py-2 bg-[#1e40af] hover:bg-[#1e3a8a] text-white hover:shadow-md border-none font-bold uppercase text-[10.5px] rounded-xl cursor-pointer transition flex items-center justify-center gap-1.5 shadow-md flex-1"
                       >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                        <span>PNG Pass</span>
+                        <span>Download PDF</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!selectedPerson) return;
+                          showToast(`Compiling active card PNG...`, 'success');
+                          
+                          Promise.all([
+                            import('html2canvas')
+                          ]).then(async ([html2canvasModule]) => {
+                            const html2canvas = html2canvasModule.default;
+
+                            const waitForImages = (element: HTMLElement) => {
+                              const imgs = Array.from(element.querySelectorAll('img'));
+                              const promises = imgs.map(img => {
+                                if (img.complete) return Promise.resolve();
+                                return new Promise<void>(resolve => {
+                                  img.onload = () => resolve();
+                                  img.onerror = () => resolve();
+                                });
+                              });
+                              return Promise.all(promises);
+                            };
+
+                            try {
+                              const cardEl = document.getElementById('id-card-render-container');
+                              if (!cardEl) return;
+                              
+                              await waitForImages(cardEl);
+                              const canvas = await html2canvas(cardEl, { scale: 3, useCORS: true });
+                              const link = document.createElement('a');
+                              link.download = `myeduride-card-${selectedPerson.name.replace(/\s+/g, '-').toLowerCase()}.png`;
+                              link.href = canvas.toDataURL('image/png');
+                              link.click();
+                              showToast('Digital card PNG downloaded successfully!', 'success');
+                            } catch (err) {
+                              console.error('Active card PNG generation error:', err);
+                              showToast('PNG compile failed.', 'error');
+                            }
+                          });
+                        }}
+                        className="px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 text-[10.5px] uppercase font-bold rounded-xl cursor-pointer text-center transition flex items-center justify-center gap-1 shadow-xs flex-1"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <span>Download PNG</span>
                       </button>
                     </div>
 
@@ -2719,6 +3713,594 @@ export default function SuperAdminDashboard() {
                 </div>
 
               </form>
+
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* POPUP MODAL: EXACT ID TEMPLATE EDITOR (POSITIONS & SIZES) */}
+      <AnimatePresence>
+        {isTemplateEditorOpen && (
+          <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden flex flex-col max-h-[92vh]"
+            >
+              
+              {/* Header */}
+              <div className="bg-slate-900 text-slate-100 p-5.5 relative">
+                <div className="absolute top-4 right-4 animate-bounce">
+                  <button 
+                    onClick={() => setIsTemplateEditorOpen(false)}
+                    className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition border-none cursor-pointer"
+                    title="Close"
+                    type="button"
+                  >
+                    <span className="text-xs font-black uppercase px-2">Close</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold">
+                    ⚙️
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm uppercase text-white tracking-wide">ID Card Frame & Layout Template Editor</h3>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Configure spatial coordinates (X/Y offsets) and visual frame sizes of placeholders</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Slit Core Form Context */}
+              <div className="flex-1 overflow-hidden flex flex-col lg:flex-row min-h-0 bg-slate-50">
+                
+                {/* Left controls column */}
+                <div className="w-full lg:w-1/2 flex flex-col overflow-y-auto border-r border-slate-200 p-6 min-h-0">
+                  
+                  {/* Internal tabs selector */}
+                  <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 mb-5 select-none gap-1">
+                    {[
+                      { id: 'front', label: 'Front Offsets' },
+                      { id: 'back', label: 'Back Offsets' },
+                      { id: 'sizes', label: 'Frame Sizes' }
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setEditorActiveTab(tab.id)}
+                        className={`flex-1 py-1 px-1 text-[10.5px] font-black uppercase rounded-lg transition-all cursor-pointer border-none ${
+                          editorActiveTab === tab.id 
+                            ? 'bg-[#1e40af] text-white shadow-xs' 
+                            : 'text-slate-500 hover:text-slate-800 bg-transparent'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Dynamic controls context rendering based on subtab */}
+                  {editorActiveTab === 'front' && (
+                    <div className="space-y-4">
+                      <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-200 mb-2">
+                        <p className="text-[10.5px] text-slate-600 leading-snug">
+                          💡 **Front Side Offsets:** Adjust X (horizontal) and Y (vertical) offsets in pixels for each element. Alternatively, drag elements directly on the background preview behind this dialog.
+                        </p>
+                      </div>
+
+                      {[
+                        { key: 'schoolHeader', label: '🏫 School Header Block' },
+                        { key: 'titlePill', label: '🏷️ Category Title Pill' },
+                        { key: 'photoBox', label: '👤 Photo Frame Compartment' },
+                        { key: 'detailsBlock', label: '🗂️ Name & Information Block' },
+                        { key: 'barcodeBlock', label: '📊 Barcode Element' },
+                        { key: 'qrBlock', label: '📱 QR Code Frame' },
+                        { key: 'myEduRideBadge', label: '🌐 MyEduRide Enabled Stamp' },
+                        { key: 'secureBadge', label: '🛡️ Spatial Secure Badge' },
+                      ].map((item) => (
+                        <div key={item.key} className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs space-y-3">
+                          <label className="text-[11px] font-black text-slate-700 block uppercase tracking-wider">{item.label}</label>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <div className="flex justify-between text-[9px] font-mono text-slate-500 mb-1">
+                                <span>X Offset (px)</span>
+                                <span className="font-bold text-indigo-600">{positions[item.key].x}px</span>
+                              </div>
+                              <input 
+                                type="range" 
+                                min="-120" 
+                                max="120" 
+                                value={positions[item.key].x}
+                                onChange={(e) => setPositions(prev => ({
+                                  ...prev,
+                                  [item.key]: { ...prev[item.key], x: parseInt(e.target.value) }
+                                }))}
+                                className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                              />
+                            </div>
+                            <div>
+                              <div className="flex justify-between text-[9px] font-mono text-slate-500 mb-1">
+                                <span>Y Offset (px)</span>
+                                <span className="font-bold text-indigo-600">{positions[item.key].y}px</span>
+                              </div>
+                              <input 
+                                type="range" 
+                                min="-120" 
+                                max="120" 
+                                value={positions[item.key].y}
+                                onChange={(e) => setPositions(prev => ({
+                                  ...prev,
+                                  [item.key]: { ...prev[item.key], y: parseInt(e.target.value) }
+                                }))}
+                                className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {editorActiveTab === 'back' && (
+                    <div className="space-y-4">
+                      <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-200 mb-2">
+                        <p className="text-[10.5px] text-slate-600 leading-snug">
+                          💡 **Back Side Offsets:** Tweak elements placement for the backside of the card in real-time.
+                        </p>
+                      </div>
+
+                      {[
+                        { key: 'backHeader', label: '🏫 School Name Branding' },
+                        { key: 'signatureBlock', label: '✍️ Principal Signature Space' },
+                        { key: 'returnBox', label: '📥 Return & Security Box' },
+                        { key: 'disclaimerBlock', label: '⚖️ Base Disclaimer Banner' },
+                      ].map((item) => (
+                        <div key={item.key} className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs space-y-3">
+                          <label className="text-[11px] font-black text-slate-700 block uppercase tracking-wider">{item.label}</label>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <div className="flex justify-between text-[9px] font-mono text-slate-500 mb-1">
+                                <span>X Offset (px)</span>
+                                <span className="font-bold text-indigo-600">{positions[item.key].x}px</span>
+                              </div>
+                              <input 
+                                type="range" 
+                                min="-120" 
+                                max="120" 
+                                value={positions[item.key].x}
+                                onChange={(e) => setPositions(prev => ({
+                                  ...prev,
+                                  [item.key]: { ...prev[item.key], x: parseInt(e.target.value) }
+                                }))}
+                                className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                              />
+                            </div>
+                            <div>
+                              <div className="flex justify-between text-[9px] font-mono text-slate-500 mb-1">
+                                <span>Y Offset (px)</span>
+                                <span className="font-bold text-indigo-600">{positions[item.key].y}px</span>
+                              </div>
+                              <input 
+                                type="range" 
+                                min="-120" 
+                                max="120" 
+                                value={positions[item.key].y}
+                                onChange={(e) => setPositions(prev => ({
+                                  ...prev,
+                                  [item.key]: { ...prev[item.key], y: parseInt(e.target.value) }
+                                }))}
+                                className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {editorActiveTab === 'sizes' && (
+                    <div className="space-y-4">
+                      
+                      {/* Photo sizing */}
+                      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
+                        <label className="text-[11px] font-black text-slate-700 block uppercase tracking-wider">👤 Photograph Placeholder Dimensions</label>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <div className="flex justify-between text-[9px] font-mono text-slate-500 mb-1">
+                              <span>Width (px)</span>
+                              <span className="font-bold text-indigo-600">{placeholderSizes.photoWidth}px</span>
+                            </div>
+                            <input 
+                              type="range" 
+                              min="60" 
+                              max="130" 
+                              value={placeholderSizes.photoWidth}
+                              onChange={(e) => setPlaceholderSizes(prev => ({ ...prev, photoWidth: parseInt(e.target.value) }))}
+                              className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                            />
+                          </div>
+                          <div>
+                            <div className="flex justify-between text-[9px] font-mono text-slate-500 mb-1">
+                              <span>Height (px)</span>
+                              <span className="font-bold text-indigo-600">{placeholderSizes.photoHeight}px</span>
+                            </div>
+                            <input 
+                              type="range" 
+                              min="80" 
+                              max="165" 
+                              value={placeholderSizes.photoHeight}
+                              onChange={(e) => setPlaceholderSizes(prev => ({ ...prev, photoHeight: parseInt(e.target.value) }))}
+                              className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Header and label font sizes */}
+                      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-4">
+                        <label className="text-[11px] font-black text-slate-700 block uppercase tracking-wider">🔤 Typography & Font Sizes</label>
+                        
+                        <div className="space-y-3">
+                          <div>
+                            <div className="flex justify-between text-[9px] font-mono text-slate-500 mb-1">
+                              <span>School Title Font Size</span>
+                              <span className="font-bold text-indigo-600">{placeholderSizes.schoolHeaderFontSize}px</span>
+                            </div>
+                            <input 
+                              type="range" 
+                              min="12" 
+                              max="24" 
+                              value={placeholderSizes.schoolHeaderFontSize}
+                              onChange={(e) => setPlaceholderSizes(prev => ({ ...prev, schoolHeaderFontSize: parseInt(e.target.value) }))}
+                              className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                            />
+                          </div>
+
+                          <div>
+                            <div className="flex justify-between text-[9px] font-mono text-slate-500 mb-1">
+                              <span>Details List Font Size</span>
+                              <span className="font-bold text-indigo-600">{placeholderSizes.detailsFontSize}px</span>
+                            </div>
+                            <input 
+                              type="range" 
+                              min="8" 
+                              max="15" 
+                              step="0.5"
+                              value={placeholderSizes.detailsFontSize}
+                              onChange={(e) => setPlaceholderSizes(prev => ({ ...prev, detailsFontSize: parseFloat(e.target.value) }))}
+                              className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Title Pill sizing */}
+                      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
+                        <label className="text-[11px] font-black text-slate-700 block uppercase tracking-wider">🏷️ Title Pill Shape & Size</label>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <div className="flex justify-between text-[9px] font-mono text-slate-500 mb-1">
+                              <span>Pill Min Width</span>
+                              <span className="font-bold text-indigo-600">{placeholderSizes.titlePillWidth}px</span>
+                            </div>
+                            <input 
+                              type="range" 
+                              min="120" 
+                              max="220" 
+                              value={placeholderSizes.titlePillWidth}
+                              onChange={(e) => setPlaceholderSizes(prev => ({ ...prev, titlePillWidth: parseInt(e.target.value) }))}
+                              className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                            />
+                          </div>
+                          <div>
+                            <div className="flex justify-between text-[9px] font-mono text-slate-500 mb-1">
+                              <span>Title Font Size</span>
+                              <span className="font-bold text-indigo-600">{placeholderSizes.titlePillFontSize}px</span>
+                            </div>
+                            <input 
+                              type="range" 
+                              min="8" 
+                              max="16" 
+                              value={placeholderSizes.titlePillFontSize}
+                              onChange={(e) => setPlaceholderSizes(prev => ({ ...prev, titlePillFontSize: parseInt(e.target.value) }))}
+                              className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Barcode and QR sizes */}
+                      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
+                        <label className="text-[11px] font-black text-slate-700 block uppercase tracking-wider">📊 Barcode & QR Stamp Size</label>
+                        
+                        <div className="grid grid-cols-3 gap-2 pb-1.5 border-b border-slate-100">
+                          <div className="col-span-2">
+                            <div className="flex justify-between text-[9px] font-mono text-slate-500 mb-1">
+                              <span>Barcode Width (px)</span>
+                              <span className="font-bold text-indigo-600">{placeholderSizes.barcodeWidth}px</span>
+                            </div>
+                            <input 
+                              type="range" 
+                              min="80" 
+                              max="180" 
+                              value={placeholderSizes.barcodeWidth}
+                              onChange={(e) => setPlaceholderSizes(prev => ({ ...prev, barcodeWidth: parseInt(e.target.value) }))}
+                              className="w-full h-1.5 bg-slate-150 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                            />
+                          </div>
+                          <div>
+                            <div className="flex justify-between text-[9px] font-mono text-slate-500 mb-1">
+                              <span>Height</span>
+                              <span className="font-bold text-indigo-600">{placeholderSizes.barcodeHeight}px</span>
+                            </div>
+                            <input 
+                              type="range" 
+                              min="10" 
+                              max="30" 
+                              value={placeholderSizes.barcodeHeight}
+                              onChange={(e) => setPlaceholderSizes(prev => ({ ...prev, barcodeHeight: parseInt(e.target.value) }))}
+                              className="w-full h-1.5 bg-slate-150 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="flex justify-between text-[9px] font-mono text-slate-500 mb-1">
+                            <span>QR Stamp Size (Width/Height)</span>
+                            <span className="font-bold text-indigo-600">{placeholderSizes.qrSize}px</span>
+                          </div>
+                          <input 
+                            type="range" 
+                            min="24" 
+                            max="70" 
+                            value={placeholderSizes.qrSize}
+                            onChange={(e) => setPlaceholderSizes(prev => ({ ...prev, qrSize: parseInt(e.target.value) }))}
+                            className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                          />
+                        </div>
+                      </div>
+
+                    </div>
+                  )}
+
+                </div>
+
+                {/* Right live scaled preview column */}
+                <div className="w-full lg:w-1/2 bg-slate-100 flex flex-col items-center justify-center p-6 space-y-6 overflow-y-auto select-none min-h-0 relative">
+                  <div className="absolute top-4 left-4">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none bg-white py-1 px-2.5 rounded-md border border-slate-200">
+                      Live Scaled Mockup (Transform: scale(0.85))
+                    </span>
+                  </div>
+
+                  <div className="scale-85 origin-center flex flex-col items-center gap-6 mt-4">
+                    
+                    {/* Render Front card preview copy inside modal */}
+                    <div className="flex flex-col items-center">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Front Layout</span>
+                      <div 
+                        className="w-[480px] h-[304px] bg-white rounded-[24px] shadow-lg border border-slate-200/80 p-5.5 relative overflow-hidden select-none shrink-0"
+                        style={{ backgroundColor: cardBgColor, fontFamily: cardFontFamily === 'sans' ? 'sans-serif' : cardFontFamily === 'serif' ? 'Georgia, serif' : 'monospace' }}
+                      >
+                        {/* Diagonal stripes */}
+                        <div className="absolute top-0 left-0 w-[160px] h-[160px] pointer-events-none z-10 opacity-90 overflow-hidden">
+                          <div className="absolute -top-10 -left-10 w-32 h-32 rotate-45" style={{ backgroundColor: cardPrimaryColor }} />
+                          <div className="absolute top-0 -left-12 w-32 h-12 rotate-45 opacity-70" style={{ backgroundColor: cardSecondaryColor }} />
+                          <div className="absolute top-5 -left-16 w-32.5 h-8 rotate-45 opacity-40 bg-cyan-300" />
+                        </div>
+
+                        {/* Badge */}
+                        <div 
+                          className="absolute top-4 right-4 z-40 flex items-center gap-1 bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200/80 px-2 py-0.5 rounded-full shadow-xs"
+                          style={{ transform: `translate(${positions.myEduRideBadge.x}px, ${positions.myEduRideBadge.y}px)` }}
+                        >
+                          <div className="w-4 h-4 rounded-full bg-[#1e40af] flex items-center justify-center text-white p-0.5">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-2.5 h-2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                          </div>
+                          <span className="text-[7.5px] font-black text-slate-800 tracking-wider">MyEduRide <span className="text-[#3b82f6] lowercase italic font-bold">enabled</span></span>
+                        </div>
+
+                        {/* Header logo text */}
+                        <div 
+                          className="text-center pt-1.5 pl-[36px] pr-[116px] z-30 relative"
+                          style={{ transform: `translate(${positions.schoolHeader.x}px, ${positions.schoolHeader.y}px)` }}
+                        >
+                          <h3 className="font-extrabold tracking-tight leading-none block truncate text-slate-900" style={{ color: cardPrimaryColor, fontSize: `${placeholderSizes.schoolHeaderFontSize}px` }}>
+                            {selectedPerson ? selectedPerson.schoolName : 'UGBEKUN ACADEMY'}
+                          </h3>
+                          {cardShowAddress && (
+                            <p className="text-[8.5px] text-slate-500 font-extrabold tracking-wider leading-none mt-1 uppercase truncate">
+                              {selectedPerson ? selectedPerson.address : '23 Evbuomwan St, Benin City'}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Title Pill */}
+                        <div 
+                          className="flex justify-center mt-2.5 z-30 relative"
+                          style={{ transform: `translate(${positions.titlePill.x}px, ${positions.titlePill.y}px)` }}
+                        >
+                          <div 
+                            className="px-6 py-1 text-center font-black text-white uppercase tracking-wider rounded-md shadow-xs"
+                            style={{ 
+                              background: `linear-gradient(135deg, ${cardSecondaryColor} 0%, ${cardPrimaryColor} 100%)`,
+                              minWidth: `${placeholderSizes.titlePillWidth}px`,
+                              fontSize: `${placeholderSizes.titlePillFontSize}px`
+                            }}
+                          >
+                            {customTitleText}
+                          </div>
+                        </div>
+
+                        {/* Body Layout */}
+                        <div className="flex flex-row gap-4.5 mt-3 items-start z-20 relative w-full">
+                          <div 
+                            className="flex-shrink-0 flex flex-col items-center justify-start"
+                            style={{ 
+                              transform: `translate(${positions.photoBox.x}px, ${positions.photoBox.y}px)`,
+                              width: `${placeholderSizes.photoWidth + 8}px`
+                            }}
+                          >
+                            {cardShowPhoto && (
+                              <div 
+                                className="rounded-lg bg-white border border-slate-200/80 flex items-center justify-center shadow-md relative overflow-hidden shrink-0"
+                                style={{
+                                  width: `${placeholderSizes.photoWidth}px`,
+                                  height: `${placeholderSizes.photoHeight}px`
+                                }}
+                              >
+                                {selectedPerson && selectedPerson.avatar ? (
+                                  <img src={selectedPerson.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full bg-slate-950 flex flex-col items-center justify-center text-white">
+                                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-slate-400"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex-grow flex flex-col justify-between" style={{ height: `${placeholderSizes.photoHeight}px` }}>
+                            <div 
+                              className="space-y-1 w-full"
+                              style={{ transform: `translate(${positions.detailsBlock.x}px, ${positions.detailsBlock.y}px)` }}
+                            >
+                              <div className="flex flex-row items-center leading-tight font-black" style={{ fontSize: `${placeholderSizes.detailsFontSize}px` }}>
+                                <span className="w-[50px] text-slate-400 font-extrabold uppercase tracking-widest text-[8px] shrink-0">Name:</span>
+                                <span className="flex-grow font-black text-slate-950 uppercase truncate" style={{ fontSize: `${placeholderSizes.detailsFontSize + 0.5}px` }}>
+                                  {selectedPerson ? selectedPerson.name : 'OLIVIA WILSON'}
+                                </span>
+                              </div>
+                              <div className="flex flex-row items-center leading-tight" style={{ fontSize: `${placeholderSizes.detailsFontSize}px` }}>
+                                <span className="w-[50px] text-slate-400 font-extrabold uppercase tracking-widest text-[8px] shrink-0">Birth:</span>
+                                <span className="flex-grow font-black text-slate-800">{selectedPerson ? selectedPerson.birth : '13/09/2010'}</span>
+                              </div>
+                              <div className="flex flex-row items-center leading-tight" style={{ fontSize: `${placeholderSizes.detailsFontSize}px` }}>
+                                <span className="w-[50px] text-slate-400 font-extrabold uppercase tracking-widest text-[8px] shrink-0">ID No:</span>
+                                <span className="flex-grow font-mono font-black text-[#1e40af]" style={{ color: cardPrimaryColor, fontSize: `${placeholderSizes.detailsFontSize + 1}px` }}>
+                                  {selectedPerson ? selectedPerson.idNo : '123-456-7890'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                              {cardShowBarcode ? (
+                                <div 
+                                  className="flex flex-col items-start leading-none gap-0.5"
+                                  style={{ transform: `translate(${positions.barcodeBlock.x}px, ${positions.barcodeBlock.y}px)` }}
+                                >
+                                  <div 
+                                    className="bg-white flex gap-0.5 items-stretch p-0.5 border border-slate-100"
+                                    style={{ width: `${placeholderSizes.barcodeWidth}px`, height: `${placeholderSizes.barcodeHeight}px` }}
+                                  >
+                                    {[1, 2, 4, 1, 3, 2, 1, 2, 4, 2, 1, 2].map((v, i) => <div key={i} className="bg-slate-950 shrink-0 flex-grow" />)}
+                                  </div>
+                                </div>
+                              ) : <div />}
+
+                              {cardShowQR && (
+                                <div 
+                                  className="bg-white rounded-md border border-slate-200/80 p-0.5 shadow-sm flex items-center justify-center shrink-0"
+                                  style={{ transform: `translate(${positions.qrBlock.x}px, ${positions.qrBlock.y}px)`, width: `${placeholderSizes.qrSize}px`, height: `${placeholderSizes.qrSize}px` }}
+                                >
+                                  {qrCodeDataUrl ? <img src={qrCodeDataUrl} className="w-full h-full" alt="QR" /> : <div className="w-full h-full bg-slate-100 animate-pulse" />}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Render Back card preview copy inside modal */}
+                    <div className="flex flex-col items-center">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 font-sans">Back Layout</span>
+                      <div 
+                        className="w-[480px] h-[304px] bg-white rounded-[24px] shadow-lg border border-slate-200/80 p-5.5 relative overflow-hidden select-none shrink-0"
+                        style={{ backgroundColor: cardBgColor, fontFamily: cardFontFamily === 'sans' ? 'sans-serif' : cardFontFamily === 'serif' ? 'Georgia, serif' : 'monospace' }}
+                      >
+                        <div 
+                          className="flex flex-col items-center pt-2"
+                          style={{ transform: `translate(${positions.backHeader.x}px, ${positions.backHeader.y}px)` }}
+                        >
+                          <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white p-2 shadow-md" style={{ backgroundColor: cardPrimaryColor }}>
+                            <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                          </div>
+                          <h4 className="text-[15px] font-extrabold tracking-tight mt-1.5 text-slate-900 uppercase" style={{ color: cardPrimaryColor }}>
+                            {selectedPerson ? selectedPerson.schoolName : 'UGBEKUN ACADEMY'}
+                          </h4>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3.5 mt-4.5 px-2.5">
+                          <div 
+                            className="flex flex-col items-center"
+                            style={{ transform: `translate(${positions.signatureBlock.x}px, ${positions.signatureBlock.y}px)` }}
+                          >
+                            <span className="text-[8.5px] font-black uppercase text-slate-400 tracking-wider mb-0.5">Authorised Signature</span>
+                            <div className="w-full h-11 bg-slate-50 border border-slate-200/80 rounded-lg flex items-center justify-center p-1 font-sans text-[7px] text-slate-500 font-bold relative">
+                              Principal Sign
+                            </div>
+                          </div>
+
+                          <div 
+                            className="flex flex-col items-stretch"
+                            style={{ transform: `translate(${positions.returnBox.x}px, ${positions.returnBox.y}px)` }}
+                          >
+                            <span className="text-[8.5px] font-black uppercase text-slate-400 tracking-wider mb-0.5 text-center">Security Return</span>
+                            <div className="h-11 bg-slate-50 border border-slate-200/60 rounded-lg p-1.5 flex flex-col justify-center items-center text-center">
+                              <p className="text-[8px] text-slate-600 font-extrabold leading-tight">{cardReturnInstructions}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {cardShowDisclaimer && (
+                          <div 
+                            className="absolute bottom-0 inset-x-0 bg-slate-100 border-t border-slate-200 py-2.5 px-4"
+                            style={{ transform: `translate(${positions.disclaimerBlock.x}px, ${positions.disclaimerBlock.y}px)` }}
+                          >
+                            <p className="text-[8px] text-slate-800 text-center uppercase tracking-wide font-black">{cardDisclaimerText}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Footer */}
+              <div className="bg-slate-900 p-5.5 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400 select-none">
+                <button
+                  type="button"
+                  onClick={resetCardPositions}
+                  className="px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl cursor-pointer font-bold border-none uppercase transition"
+                >
+                  Reset To defaults
+                </button>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        localStorage.setItem('myeduride_id_positions', JSON.stringify(positions));
+                        localStorage.setItem('myeduride_id_sizes', JSON.stringify(placeholderSizes));
+                        showToast('ID Template Custom Layout and frame sizes successfully saved onto system!', 'success');
+                      } catch (e) {
+                        showToast('Error saving template to disk.', 'error');
+                      }
+                      setIsTemplateEditorOpen(false);
+                    }}
+                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold border-none uppercase text-xs cursor-pointer shadow-md"
+                  >
+                    💾 Save ID Template
+                  </button>
+                </div>
+              </div>
 
             </motion.div>
           </div>
