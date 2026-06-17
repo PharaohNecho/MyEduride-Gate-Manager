@@ -5,10 +5,11 @@ import { useEffect, useState } from 'react';
 import { fetchData, getSession, logout, updateSession } from '@/lib/api';
 import { 
   Users, GraduationCap, UserCheck, TrendingUp, Plus, Bell, School, Search, 
-  Sparkles, ShieldCheck, QrCode, ArrowRight, ArrowLeftRight, Check, X,
+  Sparkles, ShieldCheck, QrCode, ArrowRight, ArrowLeftRight, Check, X, ArrowLeft,
   Calendar, CreditCard, ChevronRight, ChevronDown, CheckCircle2, HelpCircle, Inbox,
   LayoutDashboard, Menu, Lock, Settings, Printer, Download, LogOut, Sliders,
-  Edit, ShieldAlert, Layers, KeyRound, User
+  Edit, ShieldAlert, Layers, KeyRound, User, Trash2, Camera, RefreshCw, ArrowUpCircle, Video, Key, Clock, Landmark, Wifi,
+  List, UserPlus
 } from 'lucide-react';
 import Link from 'next/link';
 import StudentAvatar from '@/components/shared/StudentAvatar';
@@ -42,61 +43,64 @@ export default function SchoolAdminDashboard() {
   const [parentsOpen, setParentsOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(false);
 
-  // Dynamic lists for robust interactions
+  // Dynamic lists for robust interactions - Pre-populated to match screenshots exactly
   const [students, setStudents] = useState([
-    { id: 'std-1', first_name: 'Chinedu', last_name: 'Alabi', grade: 'Grade 3A', parent: 'Olumide Johnson', rfid: 'RFID-98327', status: 'present' },
-    { id: 'std-2', first_name: 'Funmi', last_name: 'Balogun', grade: 'Grade 1B', parent: 'Mrs. Balogun', rfid: 'RFID-48231', status: 'absent' },
-    { id: 'std-3', first_name: 'Tobi', last_name: 'Adeleke', grade: 'Grade 5', parent: 'Mr. Adeleke', rfid: 'RFID-10294', status: 'present' },
-    { id: 'std-4', first_name: 'Amara', last_name: 'Okonkwo', grade: 'Grade 2', parent: 'Chinwe Okonkwo', rfid: 'RFID-55291', status: 'present' },
-    { id: 'std-5', first_name: 'Zainab', last_name: 'Musa', grade: 'Grade 4C', parent: 'Alhaji Musa', rfid: 'RFID-77112', status: 'absent' }
+    { id: 'STU-F950-MQBSEC90', first_name: 'john', last_name: 'doe', grade: 'General', parent: 'doe jane', rfid: 'RFID-12345', status: 'present', photo_url: null },
+    { id: 'std-1', first_name: 'Chinedu', last_name: 'Alabi', grade: 'Grade 3A', parent: 'Olumide Johnson', rfid: 'RFID-98327', status: 'present', photo_url: null },
+    { id: 'std-2', first_name: 'Funmi', last_name: 'Balogun', grade: 'Grade 1B', parent: 'Mrs. Balogun', rfid: 'RFID-48231', status: 'absent', photo_url: null },
+    { id: 'std-3', first_name: 'Tobi', last_name: 'Adeleke', grade: 'Grade 5', parent: 'Mr. Adeleke', rfid: 'RFID-10294', status: 'present', photo_url: null }
   ]);
 
   const [staffList, setStaffList] = useState([
-    { id: 'stf-1', name: 'Mrs. Adebayo', role: 'Grade 3 Teacher', email: 'adebayo@myeduride.com', phone: '+234 803 111 2222', status: 'active' },
-    { id: 'stf-2', name: 'Mr. Chukwu', role: 'Security Supervisor', email: 'chukwu@myeduride.com', phone: '+234 809 333 4444', status: 'active' },
-    { id: 'stf-3', name: 'Miss Ibrahim', role: 'Nursery Assistant', email: 'ibrahim@myeduride.com', phone: '+234 812 555 6666', status: 'active' }
+    { id: 'STF-F950-MQBS98IQ', name: 'usiobaifo victory', username: 'viktori', role: 'School Admin', email: 'viktori@myeduride.com', phone: '+234 803 111 2222', status: 'active', hasPhoto: false },
+    { id: 'stf-1', name: 'Mrs. Adebayo', role: 'Grade 3 Teacher', email: 'adebayo@myeduride.com', phone: '+234 803 111 2222', status: 'active', hasPhoto: true }
   ]);
 
   const [parentsList, setParentsList] = useState([
-    { id: 'prt-1', name: 'Olumide Johnson', student: 'Chinedu Alabi', phone: '+234 802 345 6789', status: 'verified', rfid_access: 'Yes' },
-    { id: 'prt-2', name: 'Alhaji Musa', student: 'Zainab Musa', phone: '+234 805 987 6543', status: 'verified', rfid_access: 'Yes' },
-    { id: 'prt-3', name: 'Chinwe Okonkwo', student: 'Amara Okonkwo', phone: '+234 816 234 5678', status: 'verified', rfid_access: 'Yes' }
+    { id: 'prt-1', name: 'doe jane', username: 'doejane', student: 'john doe', grade: 'General', student_id: 'STU-F950-MQBSEC90', phone: '—', status: 'verified', rfid_access: 'Yes' },
+    { id: 'prt-2', name: 'Olumide Johnson', student: 'Chinedu Alabi', phone: '+234 802 345 6789', status: 'verified', rfid_access: 'Yes' }
   ]);
 
   const [classesList, setClassesList] = useState([
-    { id: 'cls-1', name: 'Grade 1B', category: 'Primary', teacher: 'Miss Ibrahim', count: 18 },
-    { id: 'cls-2', name: 'Grade 3A', category: 'Primary', teacher: 'Mrs. Adebayo', count: 22 },
-    { id: 'cls-3', name: 'Grade 5', category: 'Primary', teacher: 'Mr. Obi', count: 15 },
-    { id: 'cls-4', name: 'Nursery B', category: 'Junior', teacher: 'Miss Ibrahim', count: 12 }
+    { id: 'cls-1', name: 'General', category: 'Primary', teacher: 'usiobaifo victory', count: 1 },
+    { id: 'cls-2', name: 'Grade 1B', category: 'Primary', teacher: 'Mrs. Adebayo', count: 0 },
+    { id: 'cls-3', name: 'Grade 3A', category: 'Primary', teacher: 'Mrs. Adebayo', count: 1 },
+    { id: 'cls-4', name: 'Grade 5', category: 'Primary', teacher: 'Mr. Obi', count: 1 }
   ]);
 
   const [pickupList, setPickupList] = useState([
     { id: 'pck-1', student: 'Tobi Adeleke', grade: 'Grade 5', parent: 'Mr. Adeleke', time: '14:35', status: 'waiting_release', method: 'RFID Card' },
-    { id: 'pck-2', student: 'Chinedu Alabi', grade: 'Grade 3A', parent: 'Olumide Johnson', time: '14:38', status: 'completed', method: 'OTP Code' },
-    { id: 'pck-3', student: 'Amara Okonkwo', grade: 'Grade 2', parent: 'Chinwe Okonkwo', time: '14:40', status: 'waiting_approval', method: 'RFID Card' }
+    { id: 'pck-2', student: 'Chinedu Alabi', grade: 'Grade 3A', parent: 'Olumide Johnson', time: '14:38', status: 'completed', method: 'OTP Code' }
   ]);
 
   const [calendarEvents, setCalendarEvents] = useState([
     { id: 'evt-1', title: 'PTA Board Meeting', date: '2026-06-18', time: '16:00', type: 'meeting' },
-    { id: 'evt-2', title: 'Mid-term Exams Begin', date: '2026-06-22', time: '08:30', type: 'exam' },
-    { id: 'evt-3', title: 'Inter-house Sports Day', date: '2026-06-26', time: '09:00', type: 'sports' }
+    { id: 'evt-2', title: 'Mid-term Exams Begin', date: '2026-06-22', time: '08:30', type: 'exam' }
   ]);
 
   const [systemLogs, setSystemLogs] = useState([
-    { id: 'log-1', action: 'RFID Authorization override', user: 'Lagos Admin Staff', target: 'Main Assembly Gate', timestamp: '2026-06-16 09:21:44', status: 'success' },
-    { id: 'log-2', action: 'New student profile created', user: 'Principal Office', target: 'Musa, Zainab', timestamp: '2026-06-16 11:05:12', status: 'success' },
-    { id: 'log-3', action: 'System Backup synced', user: 'Terminal Automation', target: 'Cloud SQL Server', timestamp: '2026-06-16 12:00:00', status: 'success' },
+    { id: 'log-1', action: 'Scan Check-in: john doe (General)', user: 'Gate Scanner', target: 'STU-F950-MQBSEC90', timestamp: '2026-06-16 08:15:22', status: 'success' },
+    { id: 'log-2', action: 'Staff Sign-in: usiobaifo victory (School Admin)', user: 'Gate Scanner', target: 'STF-F950-MQBS98IQ', timestamp: '2026-06-16 07:45:01', status: 'success' },
+    { id: 'log-3', action: 'RFID Authorization override', user: 'Lagos Admin Staff', target: 'Main Assembly Gate', timestamp: '2026-06-16 09:21:44', status: 'success' }
   ]);
 
   // Input control states for interactive forms
   const [newStudFirstName, setNewStudFirstName] = useState('');
   const [newStudLastName, setNewStudLastName] = useState('');
-  const [newStudGrade, setNewStudGrade] = useState('Grade 3A');
+  const [newStudGrade, setNewStudGrade] = useState('General');
   const [newStudParent, setNewStudParent] = useState('');
-  const [newStudRfid, setNewStudRfid] = useState('');
+  const [newStudParentPhone, setNewStudParentPhone] = useState('');
+  const [newStudParentEmail, setNewStudParentEmail] = useState('');
+  const [newStudParentUsername, setNewStudParentUsername] = useState('');
+  const [newStudAddress, setNewStudAddress] = useState('');
+  const [newStudPhotosCount, setNewStudPhotosCount] = useState(0);
   const [newStudSuccess, setNewStudSuccess] = useState('');
 
   const [newStaffName, setNewStaffName] = useState('');
+  const [newStaffUsername, setNewStaffUsername] = useState('');
+  const [newStaffPassword, setNewStaffPassword] = useState('Welcome2026');
+  const [newStaffConfirmPassword, setNewStaffConfirmPassword] = useState('Welcome2026');
+  const [newStaffAppAccess, setNewStaffAppAccess] = useState('Full dashboard access');
   const [newStaffRole, setNewStaffRole] = useState('Grade 3 Teacher');
   const [newStaffEmail, setNewStaffEmail] = useState('');
   const [newStaffPhone, setNewStaffPhone] = useState('');
@@ -112,6 +116,22 @@ export default function SchoolAdminDashboard() {
   const [enableRfidBeep, setEnableRfidBeep] = useState(true);
   const [securityOverrideCode, setSecurityOverrideCode] = useState('LagosRootSuper88#');
   const [settingsSuccess, setSettingsSuccess] = useState('');
+
+  // Interactive Sub-tabs and camera scan states
+  const [scanTab, setScanTab] = useState<'student' | 'staff' | 'pickup'>('student');
+  const [studentScanDirection, setStudentScanDirection] = useState<'in' | 'out'>('in');
+  const [staffScanDirection, setStaffScanDirection] = useState<'in' | 'out'>('in');
+  const [studentScanId, setStudentScanId] = useState('');
+  const [staffScanId, setStaffScanId] = useState('');
+  const [cameraActive, setCameraActive] = useState(true);
+  const [isFrontCamera, setIsFrontCamera] = useState(false);
+  const [pickupSearchQuery, setPickupSearchQuery] = useState('');
+  const [pickupIsLoading, setPickupIsLoading] = useState(false);
+  const [scanLogDate, setScanLogDate] = useState('2026-06-16');
+  const [scanLogShowFilter, setScanLogShowFilter] = useState<'all' | 'students' | 'staff'>('all');
+  const [staffRoles, setStaffRoles] = useState(['Accountant', 'Cleaner', 'Driver', 'Subject Teacher', 'Class teacher']);
+  const [newRoleInput, setNewRoleInput] = useState('');
+  const [roleCanBeTeacher, setRoleCanBeTeacher] = useState(false);
 
   // EDIT PROFILE INPUT STATES
   const [profileFullName, setProfileFullName] = useState('');
@@ -430,26 +450,26 @@ export default function SchoolAdminDashboard() {
     <div className="min-h-screen bg-gradient-to-tr from-[#eef4ff] via-[#f8fafc] to-[#FFFFFF] flex text-slate-800 font-sans selection:bg-[#fbbf24]/20 selection:text-[#1e3a8a] relative">
       
       {/* Sidebar Navigation - Desktop only, hidden on mobile */}
-      <aside className={`hidden md:flex bg-[#0f172a] text-[#94a3b8] shrink-0 transition-all duration-300 z-50 flex-col justify-between border-r border-slate-800/40 relative shadow-2xl h-screen sticky top-0 py-6 select-none overflow-y-auto custom-scrollbar ${
+      <aside className={`hidden md:flex bg-white text-slate-500 shrink-0 transition-all duration-300 z-50 flex-col justify-between border-r border-slate-100 relative shadow-sm h-screen sticky top-0 py-6 select-none overflow-y-auto custom-scrollbar ${
         isSidebarExpanded ? 'w-64' : 'w-20'
       }`}>
         {/* Sidebar Header */}
         <div>
-          <div className="p-6 flex items-center justify-between border-b border-slate-800/50">
+          <div className="p-6 flex items-center justify-between border-b border-slate-100/80">
             <div className={`flex items-center gap-2.5 overflow-hidden transition-all duration-300 ${isSidebarExpanded ? 'opacity-100' : 'opacity-0 md:max-w-0'}`}>
-              <div className="w-8 h-8 rounded-lg bg-[#fbbf24] flex items-center justify-center text-slate-900 shrink-0 shadow-md">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0 shadow-sm">
                 <School size={16} />
               </div>
               <div className="text-left select-none">
-                <h2 className="text-xs font-black text-white leading-none tracking-tight">MYEDURIDE</h2>
-                <p className="text-[9px] uppercase tracking-wider text-amber-400 font-bold leading-none mt-1">School Node</p>
+                <h2 className="text-sm font-black text-slate-800 leading-none tracking-tight">MyEduRide</h2>
+                <p className="text-[9px] uppercase tracking-wider text-emerald-600 font-extrabold leading-none mt-1">School Node</p>
               </div>
             </div>
             
             {/* Sidebar Toggle Button (Desktop & Mobile Close) */}
             <button 
               onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
-              className="p-1.5 rounded-lg bg-slate-800/60 text-slate-300 hover:text-white cursor-pointer hover:bg-slate-800 transition-all ml-1.5"
+              className="p-1.5 rounded-lg bg-slate-50 text-slate-500 hover:text-slate-800 cursor-pointer hover:bg-slate-100 transition-all ml-1.5 border-none"
               title="Toggle sidebar size"
             >
               <Sliders size={16} />
@@ -462,13 +482,13 @@ export default function SchoolAdminDashboard() {
             {/* 1. Dashboard (Direct Item) */}
             <button
               onClick={() => setActiveTab('dashboard')}
-              className={`w-full p-3 rounded-xl flex items-center gap-3 font-bold text-xs transition-all cursor-pointer hover:bg-slate-800/50 hover:text-white border-none text-left ${
+              className={`w-full p-3 rounded-xl flex items-center gap-3 font-bold text-xs transition-all cursor-pointer hover:bg-slate-50 hover:text-slate-800 border-none text-left ${
                 activeTab === 'dashboard' 
-                  ? 'bg-gradient-to-r from-emerald-600 to-emerald-800 text-white shadow-md' 
-                  : 'text-slate-400'
+                  ? 'bg-emerald-50 text-emerald-600 font-extrabold shadow-none' 
+                  : 'text-slate-500'
               }`}
             >
-              <LayoutDashboard size={16} className={activeTab === 'dashboard' ? 'text-amber-400' : ''} />
+              <LayoutDashboard size={16} className={activeTab === 'dashboard' ? 'text-emerald-500' : 'text-slate-400'} />
               <span className={`transition-opacity duration-300 ${isSidebarExpanded ? 'opacity-100' : 'opacity-0 md:hidden'}`}>
                 Dashboard
               </span>
@@ -478,34 +498,36 @@ export default function SchoolAdminDashboard() {
             <div className="space-y-1">
               <button
                 onClick={() => setStudentsOpen(!studentsOpen)}
-                className="w-full p-3 rounded-xl flex items-center justify-between font-bold text-xs text-slate-400 hover:bg-slate-800/50 hover:text-white cursor-pointer border-none text-left"
+                className="w-full p-3 rounded-xl flex items-center justify-between font-bold text-xs text-slate-500 hover:bg-slate-50 hover:text-slate-800 cursor-pointer border-none text-left"
               >
                 <div className="flex items-center gap-3">
-                  <GraduationCap size={16} />
+                  <GraduationCap size={16} className={activeTab.startsWith('students-') ? 'text-emerald-500' : 'text-slate-400'} />
                   <span className={isSidebarExpanded ? 'opacity-100' : 'opacity-0 md:hidden'}>Students</span>
                 </div>
                 {isSidebarExpanded && (
-                  <ChevronDown size={14} className={`transition-transform duration-200 ${studentsOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={14} className={`transition-transform duration-200 text-slate-400 ${studentsOpen ? 'rotate-180' : ''}`} />
                 )}
               </button>
 
               {studentsOpen && isSidebarExpanded && (
-                <div className="pl-6 space-y-1 border-l border-slate-800 ml-5 animate-in slide-in-from-top-1 duration-150">
+                <div className="pl-6 space-y-1 border-l border-slate-100/80 ml-5 animate-in slide-in-from-top-1 duration-150">
                   <button
                     onClick={() => setActiveTab('students-list')}
-                    className={`w-full p-2.5 rounded-lg text-left font-bold text-xs transition-all cursor-pointer border-none ${
-                      activeTab === 'students-list' ? 'text-emerald-400 bg-slate-800/60' : 'text-slate-450 hover:text-white hover:bg-slate-800/30'
+                    className={`w-full p-2.5 rounded-lg text-left font-bold text-xs transition-all cursor-pointer border-none flex items-center gap-2 ${
+                      activeTab === 'students-list' ? 'text-emerald-600 bg-emerald-50/80' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50/50'
                     }`}
                   >
-                    • Student list
+                    <List size={13} className={activeTab === 'students-list' ? 'text-emerald-500' : 'text-slate-400'} />
+                    <span>Student list</span>
                   </button>
                   <button
                     onClick={() => setActiveTab('students-add')}
-                    className={`w-full p-2.5 rounded-lg text-left font-bold text-xs transition-all cursor-pointer border-none ${
-                      activeTab === 'students-add' ? 'text-emerald-400 bg-slate-800/60' : 'text-slate-450 hover:text-white hover:bg-slate-800/30'
+                    className={`w-full p-2.5 rounded-lg text-left font-bold text-xs transition-all cursor-pointer border-none flex items-center gap-2 ${
+                      activeTab === 'students-add' ? 'text-emerald-600 bg-emerald-50/80' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50/50'
                     }`}
                   >
-                    • Add student
+                    <UserPlus size={13} className={activeTab === 'students-add' ? 'text-emerald-500' : 'text-slate-400'} />
+                    <span>Add student</span>
                   </button>
                 </div>
               )}
@@ -515,34 +537,36 @@ export default function SchoolAdminDashboard() {
             <div className="space-y-1">
               <button
                 onClick={() => setStaffOpen(!staffOpen)}
-                className="w-full p-3 rounded-xl flex items-center justify-between font-bold text-xs text-slate-400 hover:bg-slate-800/50 hover:text-white cursor-pointer border-none text-left"
+                className="w-full p-3 rounded-xl flex items-center justify-between font-bold text-xs text-slate-500 hover:bg-slate-50 hover:text-slate-800 cursor-pointer border-none text-left"
               >
                 <div className="flex items-center gap-3">
-                  <Users size={16} />
+                  <Users size={16} className={activeTab.startsWith('staff-') ? 'text-emerald-500' : 'text-slate-400'} />
                   <span className={isSidebarExpanded ? 'opacity-100' : 'opacity-0 md:hidden'}>Staff</span>
                 </div>
                 {isSidebarExpanded && (
-                  <ChevronDown size={14} className={`transition-transform duration-200 ${staffOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={14} className={`transition-transform duration-200 text-slate-400 ${staffOpen ? 'rotate-180' : ''}`} />
                 )}
               </button>
 
               {staffOpen && isSidebarExpanded && (
-                <div className="pl-6 space-y-1 border-l border-slate-800 ml-5 animate-in slide-in-from-top-1 duration-150">
+                <div className="pl-6 space-y-1 border-l border-slate-100/80 ml-5 animate-in slide-in-from-top-1 duration-150">
                   <button
                     onClick={() => setActiveTab('staff-list')}
-                    className={`w-full p-2.5 rounded-lg text-left font-bold text-xs transition-all cursor-pointer border-none ${
-                      activeTab === 'staff-list' ? 'text-emerald-400 bg-slate-800/60' : 'text-slate-450 hover:text-white hover:bg-slate-800/30'
+                    className={`w-full p-2.5 rounded-lg text-left font-bold text-xs transition-all cursor-pointer border-none flex items-center gap-2 ${
+                      activeTab === 'staff-list' ? 'text-emerald-600 bg-emerald-50/80' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50/50'
                     }`}
                   >
-                    • Staff list
+                    <List size={13} className={activeTab === 'staff-list' ? 'text-emerald-500' : 'text-slate-400'} />
+                    <span>Staff list</span>
                   </button>
                   <button
                     onClick={() => setActiveTab('staff-add')}
-                    className={`w-full p-2.5 rounded-lg text-left font-bold text-xs transition-all cursor-pointer border-none ${
-                      activeTab === 'staff-add' ? 'text-emerald-400 bg-slate-800/60' : 'text-slate-450 hover:text-white hover:bg-slate-800/30'
+                    className={`w-full p-2.5 rounded-lg text-left font-bold text-xs transition-all cursor-pointer border-none flex items-center gap-2 ${
+                      activeTab === 'staff-add' ? 'text-emerald-600 bg-emerald-50/80' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50/50'
                     }`}
                   >
-                    • Add staff
+                    <UserPlus size={13} className={activeTab === 'staff-add' ? 'text-emerald-500' : 'text-slate-400'} />
+                    <span>Add staff</span>
                   </button>
                 </div>
               )}
@@ -552,26 +576,27 @@ export default function SchoolAdminDashboard() {
             <div className="space-y-1">
               <button
                 onClick={() => setParentsOpen(!parentsOpen)}
-                className="w-full p-3 rounded-xl flex items-center justify-between font-bold text-xs text-slate-400 hover:bg-slate-800/50 hover:text-white cursor-pointer border-none text-left"
+                className="w-full p-3 rounded-xl flex items-center justify-between font-bold text-xs text-slate-500 hover:bg-slate-50 hover:text-slate-800 cursor-pointer border-none text-left"
               >
                 <div className="flex items-center gap-3">
-                  <UserCheck size={16} />
+                  <UserCheck size={16} className={activeTab.startsWith('parents-') ? 'text-emerald-500' : 'text-slate-400'} />
                   <span className={isSidebarExpanded ? 'opacity-100' : 'opacity-0 md:hidden'}>Parents</span>
                 </div>
                 {isSidebarExpanded && (
-                  <ChevronDown size={14} className={`transition-transform duration-200 ${parentsOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={14} className={`transition-transform duration-200 text-slate-400 ${parentsOpen ? 'rotate-180' : ''}`} />
                 )}
               </button>
 
               {parentsOpen && isSidebarExpanded && (
-                <div className="pl-6 space-y-1 border-l border-slate-800 ml-5 animate-in slide-in-from-top-1 duration-150">
+                <div className="pl-6 space-y-1 border-l border-slate-100/80 ml-5 animate-in slide-in-from-top-1 duration-150">
                   <button
                     onClick={() => setActiveTab('parents-list')}
-                    className={`w-full p-2.5 rounded-lg text-left font-bold text-xs transition-all cursor-pointer border-none ${
-                      activeTab === 'parents-list' ? 'text-emerald-400 bg-slate-800/60' : 'text-slate-450 hover:text-white hover:bg-slate-800/30'
+                    className={`w-full p-2.5 rounded-lg text-left font-bold text-xs transition-all cursor-pointer border-none flex items-center gap-2 ${
+                      activeTab === 'parents-list' ? 'text-emerald-600 bg-emerald-50/80' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50/50'
                     }`}
                   >
-                    • Parent list
+                    <List size={13} className={activeTab === 'parents-list' ? 'text-emerald-500' : 'text-slate-400'} />
+                    <span>Parent list</span>
                   </button>
                 </div>
               )}
@@ -581,51 +606,51 @@ export default function SchoolAdminDashboard() {
             <div className="space-y-1">
               <button
                 onClick={() => setReportsOpen(!reportsOpen)}
-                className="w-full p-3 rounded-xl flex items-center justify-between font-bold text-xs text-slate-400 hover:bg-slate-800/50 hover:text-white cursor-pointer border-none text-left"
+                className="w-full p-3 rounded-xl flex items-center justify-between font-bold text-xs text-slate-500 hover:bg-slate-50 hover:text-slate-800 cursor-pointer border-none text-left"
               >
                 <div className="flex items-center gap-3">
-                  <TrendingUp size={16} />
+                  <TrendingUp size={16} className={activeTab.startsWith('reports-') ? 'text-emerald-500' : 'text-slate-400'} />
                   <span className={isSidebarExpanded ? 'opacity-100' : 'opacity-0 md:hidden'}>Reports</span>
                 </div>
                 {isSidebarExpanded && (
-                  <ChevronDown size={14} className={`transition-transform duration-200 ${reportsOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={14} className={`transition-transform duration-200 text-slate-400 ${reportsOpen ? 'rotate-180' : ''}`} />
                 )}
               </button>
 
               {reportsOpen && isSidebarExpanded && (
-                <div className="pl-6 space-y-1 border-l border-slate-800 ml-5 animate-in slide-in-from-top-1 duration-150">
+                <div className="pl-6 space-y-1 border-l border-slate-100/80 ml-5 animate-in slide-in-from-top-1 duration-150">
                   <button
                     onClick={() => setActiveTab('reports-attendance')}
-                    className={`w-full p-2.5 rounded-lg text-left font-bold text-xs transition-all cursor-pointer border-none ${
-                      activeTab === 'reports-attendance' ? 'text-emerald-400 bg-slate-800/60' : 'text-slate-450 hover:text-white hover:bg-slate-800/30'
+                    className={`w-full p-2.5 rounded-lg text-left font-bold text-xs transition-all cursor-pointer border-none flex items-center gap-2 ${
+                      activeTab === 'reports-attendance' ? 'text-emerald-600 bg-emerald-50/80' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50/50'
                     }`}
                   >
-                    • Attendance report
+                    <List size={13} className={activeTab === 'reports-attendance' ? 'text-emerald-500' : 'text-slate-400'} />
+                    <span>Attendance report</span>
                   </button>
                   <button
                     onClick={() => setActiveTab('reports-gate')}
-                    className={`w-full p-2.5 rounded-lg text-left font-bold text-xs transition-all cursor-pointer border-none ${
-                      activeTab === 'reports-gate' ? 'text-emerald-400 bg-slate-800/60' : 'text-slate-450 hover:text-white hover:bg-slate-800/30'
+                    className={`w-full p-2.5 rounded-lg text-left font-bold text-xs transition-all cursor-pointer border-none flex items-center gap-2 ${
+                      activeTab === 'reports-gate' ? 'text-emerald-600 bg-emerald-50/80' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50/50'
                     }`}
                   >
-                    • Gate activities
+                    <List size={13} className={activeTab === 'reports-gate' ? 'text-emerald-500' : 'text-slate-400'} />
+                    <span>Gate activities</span>
                   </button>
                 </div>
               )}
             </div>
 
-
-
             {/* 7. Classes (Direct Item) */}
             <button
               onClick={() => setActiveTab('classes')}
-              className={`w-full p-3 rounded-xl flex items-center gap-3 font-bold text-xs transition-all cursor-pointer hover:bg-slate-800/50 hover:text-white border-none text-left ${
+              className={`w-full p-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer hover:bg-slate-50 hover:text-slate-800 border-none text-left ${
                 activeTab === 'classes' 
-                  ? 'bg-slate-800 text-emerald-400 shadow-sm border-l-4 border-emerald-500 rounded-l-none' 
-                  : 'text-slate-400'
+                  ? 'bg-emerald-50 text-emerald-600 font-extrabold shadow-none border-l-4 border-emerald-500 rounded-l-none' 
+                  : 'text-slate-500'
               }`}
             >
-              <Layers size={16} className={activeTab === 'classes' ? 'text-emerald-400' : ''} />
+              <Layers size={16} className={activeTab === 'classes' ? 'text-emerald-500' : 'text-slate-400'} />
               <span className={`transition-opacity duration-300 ${isSidebarExpanded ? 'opacity-100' : 'opacity-0 md:hidden'}`}>
                 Classes
               </span>
@@ -634,13 +659,13 @@ export default function SchoolAdminDashboard() {
             {/* 8. Pickup List (Direct Item) */}
             <button
               onClick={() => setActiveTab('pickup-list')}
-              className={`w-full p-3 rounded-xl flex items-center gap-3 font-bold text-xs transition-all cursor-pointer hover:bg-slate-800/50 hover:text-white border-none text-left ${
+              className={`w-full p-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer hover:bg-slate-50 hover:text-slate-800 border-none text-left ${
                 activeTab === 'pickup-list' 
-                  ? 'bg-slate-800 text-emerald-400 shadow-sm border-l-4 border-emerald-500 rounded-l-none' 
-                  : 'text-slate-400'
+                  ? 'bg-emerald-50 text-emerald-600 font-extrabold shadow-none border-l-4 border-emerald-500 rounded-l-none' 
+                  : 'text-slate-500'
               }`}
             >
-              <ArrowLeftRight size={16} className={activeTab === 'pickup-list' ? 'text-emerald-400' : ''} />
+              <ArrowLeftRight size={16} className={activeTab === 'pickup-list' ? 'text-emerald-500' : 'text-slate-400'} />
               <span className={`transition-opacity duration-300 ${isSidebarExpanded ? 'opacity-100' : 'opacity-0 md:hidden'}`}>
                 Pickup list
               </span>
@@ -649,13 +674,13 @@ export default function SchoolAdminDashboard() {
             {/* 9. Notifications (Direct Item) */}
             <button
               onClick={() => setActiveTab('notifications')}
-              className={`w-full p-3 rounded-xl flex items-center gap-3 font-bold text-xs transition-all cursor-pointer hover:bg-slate-800/50 hover:text-white border-none text-left ${
+              className={`w-full p-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer hover:bg-slate-50 hover:text-slate-800 border-none text-left ${
                 activeTab === 'notifications' 
-                  ? 'bg-slate-800 text-emerald-400 shadow-sm border-l-4 border-emerald-500 rounded-l-none' 
-                  : 'text-slate-400'
+                  ? 'bg-emerald-50 text-emerald-600 font-extrabold shadow-none border-l-4 border-emerald-500 rounded-l-none' 
+                  : 'text-slate-500'
               }`}
             >
-              <Bell size={16} className={activeTab === 'notifications' ? 'text-emerald-400' : ''} />
+              <Bell size={16} className={activeTab === 'notifications' ? 'text-emerald-500' : 'text-slate-400'} />
               <span className={`transition-opacity duration-300 ${isSidebarExpanded ? 'opacity-100' : 'opacity-0 md:hidden'}`}>
                 Notifications
               </span>
@@ -664,13 +689,13 @@ export default function SchoolAdminDashboard() {
             {/* 10. Attendance (Direct Item) */}
             <button
               onClick={() => setActiveTab('attendance')}
-              className={`w-full p-3 rounded-xl flex items-center gap-3 font-bold text-xs transition-all cursor-pointer hover:bg-slate-800/50 hover:text-white border-none text-left ${
+              className={`w-full p-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer hover:bg-slate-50 hover:text-slate-800 border-none text-left ${
                 activeTab === 'attendance' 
-                  ? 'bg-slate-800 text-emerald-400 shadow-sm border-l-4 border-emerald-500 rounded-l-none' 
-                  : 'text-slate-400'
+                  ? 'bg-emerald-50 text-emerald-600 font-extrabold shadow-none border-l-4 border-emerald-500 rounded-l-none' 
+                  : 'text-slate-500'
               }`}
             >
-              <CheckCircle2 size={16} className={activeTab === 'attendance' ? 'text-emerald-400' : ''} />
+              <CheckCircle2 size={16} className={activeTab === 'attendance' ? 'text-emerald-500' : 'text-slate-400'} />
               <span className={`transition-opacity duration-300 ${isSidebarExpanded ? 'opacity-100' : 'opacity-0 md:hidden'}`}>
                 Attendance
               </span>
@@ -679,13 +704,13 @@ export default function SchoolAdminDashboard() {
             {/* 11. School Calendar (Direct Item) */}
             <button
               onClick={() => setActiveTab('school-calendar')}
-              className={`w-full p-3 rounded-xl flex items-center gap-3 font-bold text-xs transition-all cursor-pointer hover:bg-slate-800/50 hover:text-white border-none text-left ${
+              className={`w-full p-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer hover:bg-slate-50 hover:text-slate-800 border-none text-left ${
                 activeTab === 'school-calendar' 
-                  ? 'bg-slate-800 text-emerald-400 shadow-sm border-l-4 border-emerald-500 rounded-l-none' 
-                  : 'text-slate-400'
+                  ? 'bg-emerald-50 text-emerald-600 font-extrabold shadow-none border-l-4 border-emerald-500 rounded-l-none' 
+                  : 'text-slate-500'
               }`}
             >
-              <Calendar size={16} className={activeTab === 'school-calendar' ? 'text-emerald-400' : ''} />
+              <Calendar size={16} className={activeTab === 'school-calendar' ? 'text-emerald-500' : 'text-slate-400'} />
               <span className={`transition-opacity duration-300 ${isSidebarExpanded ? 'opacity-100' : 'opacity-0 md:hidden'}`}>
                 School calendar
               </span>
@@ -694,13 +719,13 @@ export default function SchoolAdminDashboard() {
             {/* 12. Student & Staff Scan (Direct Item) */}
             <button
               onClick={() => setActiveTab('student-staff-scan')}
-              className={`w-full p-3 rounded-xl flex items-center gap-3 font-bold text-xs transition-all cursor-pointer hover:bg-slate-800/50 hover:text-white border-none text-left ${
+              className={`w-full p-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer hover:bg-slate-50 hover:text-slate-800 border-none text-left ${
                 activeTab === 'student-staff-scan' 
-                  ? 'bg-slate-800 text-emerald-400 shadow-sm border-l-4 border-emerald-500 rounded-l-none' 
-                  : 'text-slate-400'
+                  ? 'bg-emerald-50 text-emerald-600 font-extrabold shadow-none border-l-4 border-emerald-500 rounded-l-none' 
+                  : 'text-slate-500'
               }`}
             >
-              <QrCode size={16} className={activeTab === 'student-staff-scan' ? 'text-emerald-400' : ''} />
+              <QrCode size={16} className={activeTab === 'student-staff-scan' ? 'text-emerald-500' : 'text-slate-400'} />
               <span className={`transition-opacity duration-300 ${isSidebarExpanded ? 'opacity-100' : 'opacity-0 md:hidden'}`}>
                 Student & staff scan
               </span>
@@ -709,13 +734,13 @@ export default function SchoolAdminDashboard() {
             {/* 13. Audit Log (Direct Item) */}
             <button
               onClick={() => setActiveTab('audit-log')}
-              className={`w-full p-3 rounded-xl flex items-center gap-3 font-bold text-xs transition-all cursor-pointer hover:bg-slate-800/50 hover:text-white border-none text-left ${
+              className={`w-full p-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer hover:bg-slate-50 hover:text-slate-800 border-none text-left ${
                 activeTab === 'audit-log' 
-                  ? 'bg-slate-800 text-emerald-400 shadow-sm border-l-4 border-emerald-500 rounded-l-none' 
-                  : 'text-slate-400'
+                  ? 'bg-emerald-50 text-emerald-600 font-extrabold shadow-none border-l-4 border-emerald-500 rounded-l-none' 
+                  : 'text-slate-500'
               }`}
             >
-              <ShieldAlert size={16} className={activeTab === 'audit-log' ? 'text-emerald-400' : ''} />
+              <ShieldAlert size={16} className={activeTab === 'audit-log' ? 'text-emerald-500' : 'text-slate-400'} />
               <span className={`transition-opacity duration-300 ${isSidebarExpanded ? 'opacity-100' : 'opacity-0 md:hidden'}`}>
                 Audit log
               </span>
@@ -724,13 +749,13 @@ export default function SchoolAdminDashboard() {
             {/* 14. Account (Direct Item) */}
             <button
               onClick={() => setActiveTab('account')}
-              className={`w-full p-3 rounded-xl flex items-center gap-3 font-bold text-xs transition-all cursor-pointer hover:bg-slate-800/50 hover:text-white border-none text-left ${
+              className={`w-full p-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer hover:bg-slate-50 hover:text-slate-800 border-none text-left ${
                 activeTab === 'account' 
-                  ? 'bg-slate-800 text-emerald-400 shadow-sm border-l-4 border-emerald-500 rounded-l-none' 
-                  : 'text-slate-400'
+                  ? 'bg-emerald-50 text-emerald-600 font-extrabold shadow-none border-l-4 border-emerald-500 rounded-l-none' 
+                  : 'text-slate-500'
               }`}
             >
-              <User size={16} className={activeTab === 'account' ? 'text-emerald-400' : ''} />
+              <User size={16} className={activeTab === 'account' ? 'text-emerald-500' : 'text-slate-400'} />
               <span className={`transition-opacity duration-300 ${isSidebarExpanded ? 'opacity-100' : 'opacity-0 md:hidden'}`}>
                 Account
               </span>
@@ -739,13 +764,13 @@ export default function SchoolAdminDashboard() {
             {/* 15. Settings (Direct Item) */}
             <button
               onClick={() => setActiveTab('settings')}
-              className={`w-full p-3 rounded-xl flex items-center gap-3 font-bold text-xs transition-all cursor-pointer hover:bg-slate-800/50 hover:text-white border-none text-left ${
+              className={`w-full p-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer hover:bg-slate-50 hover:text-slate-800 border-none text-left ${
                 activeTab === 'settings' 
-                  ? 'bg-slate-800 text-emerald-400 shadow-sm border-l-4 border-emerald-500 rounded-l-none' 
-                  : 'text-slate-400'
+                  ? 'bg-emerald-50 text-emerald-600 font-extrabold shadow-none border-l-4 border-emerald-500 rounded-l-none' 
+                  : 'text-slate-500'
               }`}
             >
-              <Settings size={16} className={activeTab === 'settings' ? 'text-emerald-400' : ''} />
+              <Settings size={16} className={activeTab === 'settings' ? 'text-emerald-500' : 'text-slate-400'} />
               <span className={`transition-opacity duration-300 ${isSidebarExpanded ? 'opacity-100' : 'opacity-0 md:hidden'}`}>
                 Settings
               </span>
@@ -754,7 +779,7 @@ export default function SchoolAdminDashboard() {
             {/* 16. Sign Out (Direct Item) */}
             <button
               onClick={logout}
-              className="w-full p-3 rounded-xl flex items-center gap-3 font-bold text-xs transition-all cursor-pointer hover:bg-red-950/20 hover:text-red-400 border-none text-left text-slate-400"
+              className="w-full p-3 rounded-xl flex items-center gap-3 font-semibold text-xs transition-all cursor-pointer hover:bg-red-50 hover:text-red-500 border-none text-left text-slate-500"
             >
               <LogOut size={16} />
               <span className={`transition-opacity duration-300 ${isSidebarExpanded ? 'opacity-100' : 'opacity-0 md:hidden'}`}>
@@ -1389,113 +1414,153 @@ export default function SchoolAdminDashboard() {
           </div>
 
         </section>
-          </>
-        )}
+            </>
+          )}
 
         {activeTab === 'students-list' && (
           <div className="space-y-6 animate-in fade-in duration-200 text-left">
+            {/* Header section matching Screenshot 1 */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h2 className="text-xl font-black text-slate-800 tracking-tight text-left">ACTIVE STUDENT ROSTER</h2>
-                <p className="text-xs text-slate-500">Search, view RFID status, or browse active primary scholars.</p>
+                <span className="text-[10px] font-black text-emerald-500 tracking-wider uppercase block mb-1">STUDENTS</span>
+                <h2 className="text-2xl font-black text-slate-800 tracking-tight text-left">Student list ({students.length})</h2>
+                <p className="text-xs text-slate-500">Search, filter by class, or promote to the next class for the new term.</p>
               </div>
               <button 
-                onClick={() => setActiveTab('students-add')}
-                className="flex items-center gap-1.5 px-4 py-2 bg-[#1e40af] hover:bg-[#1e3a8a] text-white font-extrabold text-xs rounded-xl cursor-pointer shadow-sm border-none self-start sm:self-auto"
+                onClick={() => {
+                  setNewStudPhotosCount(0);
+                  setActiveTab('students-add');
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg cursor-pointer shadow-sm border-none self-start sm:self-auto transition-colors"
               >
                 <Plus size={14} />
-                <span>Enrol New Student</span>
+                <span>+ Add student</span>
               </button>
             </div>
 
-            <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-xs space-y-4">
-              <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
-                <div className="relative w-full sm:max-w-xs">
+            <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4">
+              {/* Search and class select controls */}
+              <div className="flex flex-col sm:flex-row gap-3 items-center">
+                <div className="relative flex-1 w-full">
                   <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Search by name or class..."
+                    placeholder="Search name, class, or ID..."
                     value={activitySearch}
                     onChange={(e) => setActivitySearch(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#1e40af]/35 min-h-[38px]"
+                    className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white min-h-[38px] transition-all"
                   />
                 </div>
-                <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase">Node Stats:</span>
-                  <span className="px-2.5 py-1 bg-blue-50 text-[#1e40af] text-[10px] font-black rounded-full border border-blue-100">
-                    {students.length} Total Scholars
-                  </span>
+                <div className="w-full sm:w-48">
+                  <select 
+                    value={newStudGrade}
+                    onChange={(e) => setNewStudGrade(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:border-emerald-500 min-h-[38px] transition-all"
+                  >
+                    <option value="All">All classes</option>
+                    <option value="General">General</option>
+                    <option value="Grade 1B">Grade 1B</option>
+                    <option value="Grade 3A">Grade 3A</option>
+                    <option value="Grade 5">Grade 5</option>
+                  </select>
                 </div>
               </div>
 
-              <div className="overflow-x-auto rounded-2xl border border-slate-100">
+              {/* Table section strictly matching style from Screenshot 1 */}
+              <div className="overflow-x-auto rounded-xl border border-slate-100">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 font-black text-[9px] uppercase tracking-wider">
-                      <th className="p-4">Student Profile</th>
-                      <th className="p-4">Grade Group</th>
-                      <th className="p-4">Linked Parent</th>
-                      <th className="p-4">Smart RFID Code</th>
-                      <th className="p-4">Terminal Status</th>
-                      <th className="p-4 text-center">Simulate Action</th>
+                    <tr className="bg-slate-50 border-b border-slate-100 text-slate-450 font-black text-[10px] uppercase tracking-wider">
+                      <th className="p-4 w-12 text-center">
+                        <input type="checkbox" className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" defaultChecked={false} />
+                      </th>
+                      <th className="p-4 text-xs font-bold text-slate-650">STUDENT</th>
+                      <th className="p-4 text-xs font-bold text-slate-650">CLASS</th>
+                      <th className="p-4 text-xs font-bold text-slate-650">ID</th>
+                      <th className="p-4 text-xs font-bold text-slate-650 text-right">ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50 text-xs">
                     {students
                       .filter(st => {
                         const q = activitySearch.toLowerCase();
-                        if (!q) return true;
-                        return `${st.first_name} ${st.last_name} ${st.grade}`.toLowerCase().includes(q);
+                        const matchSearch = !q ? true : `${st.first_name} ${st.last_name} ${st.id}`.toLowerCase().includes(q);
+                        const matchClass = newStudGrade === 'All' ? true : st.grade === newStudGrade;
+                        return matchSearch && matchClass;
                       })
                       .map(st => (
                         <tr key={st.id} className="hover:bg-slate-50/40 transition-colors">
-                          <td className="p-4 flex items-center gap-3">
-                            <StudentAvatar
-                              firstName={st.first_name}
-                              lastName={st.last_name}
-                              photoUrl={st.photo_url || null}
-                              size="sm"
-                              accentColor="#1e40af"
-                            />
-                            <div>
-                              <p className="font-extrabold text-slate-850">{st.first_name} {st.last_name}</p>
-                              <p className="text-[10px] text-slate-400">Node Ref: {st.id}</p>
+                          <td className="p-4 text-center">
+                            <input type="checkbox" className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                          </td>
+                          <td className="p-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-white font-extrabold text-[10px] uppercase tracking-wider">
+                                {st.first_name[0]}{st.last_name[0]}
+                              </div>
+                              <div>
+                                <p className="font-bold text-slate-800 text-sm lowercase">{st.first_name} {st.last_name}</p>
+                                <p className="text-[10px] text-slate-400 font-semibold">{st.parent ? `Parent: ${st.parent}` : 'No parent link'}</p>
+                              </div>
                             </div>
                           </td>
-                          <td className="p-4 font-bold text-slate-700">{st.grade}</td>
-                          <td className="p-4 text-slate-600 font-semibold">{st.parent}</td>
                           <td className="p-4">
-                            <code className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg font-mono text-[10px] font-bold">
-                              {st.rfid}
-                            </code>
-                          </td>
-                          <td className="p-4">
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                              st.status === 'present' 
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
-                                : 'bg-rose-50 text-rose-700 border-rose-100'
-                            }`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${st.status === 'present' ? 'bg-emerald-505' : 'bg-rose-505'}`} />
-                              {st.status === 'present' ? 'On Station' : 'Checked Out'}
+                            <span className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[10px] font-extrabold rounded-lg border border-emerald-100 transition-colors">
+                              {st.grade}
                             </span>
                           </td>
-                          <td className="p-4 text-center">
-                            <button
-                              onClick={() => {
-                                const selectedOpt = simStudentOptions.find(o => o.first_name === st.first_name) || {
-                                  id: st.id, first_name: st.first_name, last_name: st.last_name, photo_url: null, grade: st.grade
-                                };
-                                setSelectedSimStudent(selectedOpt);
-                                setScanStep(2);
-                                setIsScanModalOpen(true);
-                              }}
-                              className="px-2.5 py-1 hover:bg-[#1e40af]/10 text-[#1e40af] hover:text-[#1e3a8a] text-[10px] font-extrabold border border-blue-100 hover:border-blue-300 rounded-lg cursor-pointer transition-colors"
-                            >
-                              Scan RFID
-                            </button>
+                          <td className="p-4">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono text-xs text-slate-600 tracking-tight font-bold bg-slate-100/80 px-2 py-0.5 rounded-md">
+                                {st.id}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="p-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button 
+                                onClick={() => {
+                                  setToastText(`Promoted student ${st.first_name} ${st.last_name}!`);
+                                  setTimeout(() => setToastText(''), 2000);
+                                }}
+                                title="Promote Student"
+                                className="p-1.5 hover:bg-emerald-50 text-emerald-600 hover:text-emerald-700 rounded-lg cursor-pointer transition-colors border-none bg-transparent"
+                              >
+                                <ArrowUpCircle size={16} />
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  setToastText(`Editing study details for ${st.first_name}...`);
+                                  setTimeout(() => setToastText(''), 2000);
+                                }}
+                                title="Edit"
+                                className="p-1.5 hover:bg-blue-50 text-blue-600 hover:text-blue-700 rounded-lg cursor-pointer transition-colors border-none bg-transparent"
+                              >
+                                <Edit size={16} />
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  setStudents(prev => prev.filter(item => item.id !== st.id));
+                                  setToastText("Selected student dropped from registry.");
+                                  setTimeout(() => setToastText(''), 2000);
+                                }}
+                                title="Delete"
+                                className="p-1.5 hover:bg-rose-50 text-rose-600 hover:text-rose-700 rounded-lg cursor-pointer transition-colors border-none bg-transparent"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
+                    {students.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="p-8 text-center text-slate-400">
+                          <Inbox className="mx-auto text-slate-350 mb-2" size={28} />
+                          <p className="text-xs font-semibold">No students listed inside active grade cohorts.</p>
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1505,168 +1570,314 @@ export default function SchoolAdminDashboard() {
 
         {activeTab === 'students-add' && (
           <div className="space-y-6 animate-in fade-in duration-200 text-left">
+            {/* Back action */}
+            <button 
+              onClick={() => setActiveTab('students-list')}
+              className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors border-none bg-transparent cursor-pointer"
+            >
+              <ArrowLeft size={14} />
+              <span>Back</span>
+            </button>
+
             <div>
-              <h2 className="text-xl font-black text-slate-800 tracking-tight text-left">NEW STUDENT REGISTRATION</h2>
-              <p className="text-xs text-slate-500">Configure new secure scholars in node memory and assign smart hardware tags.</p>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight">Add Student</h2>
+              <p className="text-xs text-slate-505">Provide personal metadata, security parent binding and high-fidelity enrollment photographs.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="md:col-span-2 bg-white rounded-3xl border border-slate-100 p-6 shadow-xs space-y-4">
-                <legend className="font-extrabold text-slate-800 text-xs tracking-wider uppercase mb-2 border-b border-slate-50 pb-2">Academic & Bio Parameters</legend>
-                
-                {newStudSuccess && (
-                  <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 text-xs font-bold animate-pulse">
-                    {newStudSuccess}
-                  </div>
-                )}
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (!newStudFirstName || !newStudLastName || !newStudParentUsername) {
+                setToastText("Error: First Name, Last Name and Parent username are mandatory!");
+                setTimeout(() => setToastText(''), 2000);
+                return;
+              }
+              if (newStudPhotosCount < 3) {
+                setToastText("Error: Please capture all 3 student photos first for safety ID issuance.");
+                setTimeout(() => setToastText(''), 2200);
+                return;
+              }
 
-                <form onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!newStudFirstName || !newStudLastName || !newStudParent) {
-                    setToastText("Error: Please provide name and parent linkage!");
-                    setTimeout(() => setToastText(''), 2000);
-                    return;
-                  }
-                  const generatedId = 'std-' + (students.length + 1);
-                  const generatedRfid = newStudRfid || 'RFID-' + Math.floor(10000 + Math.random() * 90000);
-                  const newObj = {
-                    id: generatedId,
-                    first_name: newStudFirstName,
-                    last_name: newStudLastName,
+              const newId = "STU-F950-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+              const newObj = {
+                id: newId,
+                first_name: newStudFirstName.toLowerCase(),
+                last_name: newStudLastName.toLowerCase(),
+                grade: newStudGrade,
+                parent: newStudParent || "doe jane",
+                rfid: newStudRfid || 'RFID-' + Math.floor(10000 + Math.random() * 90000),
+                status: 'present',
+                photo_url: null
+              };
+
+              setStudents(prev => [newObj, ...prev]);
+
+              // Insert to parents list if they didn't exist first
+              const parentExists = parentsList.some(p => p.username === newStudParentUsername.toLowerCase());
+              if (!parentExists) {
+                const parentName = newStudParent || `${newStudLastName} guardian`;
+                setParentsList(prev => [
+                  {
+                    id: 'prt-' + (prev.length + 1),
+                    name: parentName.toLowerCase(),
+                    username: newStudParentUsername.toLowerCase(),
+                    student: `${newStudFirstName} ${newStudLastName}`.toLowerCase(),
                     grade: newStudGrade,
-                    parent: newStudParent,
-                    rfid: generatedRfid,
-                    status: 'present'
-                  };
-                  
-                  // Update students state
-                  setStudents(prev => [...prev, newObj]);
-                  
-                  // Update stats
-                  setStats(prev => ({
-                    ...prev,
-                    total_students: (prev.total_students || 0) + 1,
-                    present_today: (prev.present_today || 0) + 1
-                  }));
-                  
-                  setNewStudSuccess(`Success! ${newStudFirstName} ${newStudLastName} has been registered under ${generatedRfid}`);
-                  setNewStudFirstName('');
-                  setNewStudLastName('');
-                  setNewStudParent('');
-                  setNewStudRfid('');
-                  
-                  setToastText("Scholar fully registered!");
-                  setTimeout(() => {
-                    setNewStudSuccess('');
-                    setToastText('');
-                    setActiveTab('students-list');
-                  }, 2500);
-                }} className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase">First Name</label>
-                      <input
-                        type="text"
-                        required
-                        value={newStudFirstName}
-                        onChange={(e) => setNewStudFirstName(e.target.value)}
-                        placeholder="e.g. Tunde"
-                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-[#1e40af]/30 min-h-[44px]"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase">Last Name</label>
-                      <input
-                        type="text"
-                        required
-                        value={newStudLastName}
-                        onChange={(e) => setNewStudLastName(e.target.value)}
-                        placeholder="e.g. Johnson"
-                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-[#1e40af]/30 min-h-[44px]"
-                      />
-                    </div>
-                  </div>
+                    student_id: newId,
+                    phone: newStudParentPhone || '—',
+                    status: 'verified',
+                    rfid_access: 'Yes'
+                  },
+                  ...prev
+                ]);
+              }
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              setToastText("Scholar fully registered!");
+              setNewStudSuccess("Student added successfully!");
+              
+              // Reset
+              setNewStudFirstName('');
+              setNewStudLastName('');
+              setNewStudParent('');
+              setNewStudParentPhone('');
+              setNewStudParentEmail('');
+              setNewStudParentUsername('');
+              setNewStudAddress('');
+              setNewStudPhotosCount(0);
+
+              setTimeout(() => {
+                setNewStudSuccess('');
+                setToastText('');
+                setActiveTab('students-list');
+              }, 1800);
+            }} className="space-y-6">
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* Left Forms */}
+                <div className="space-y-6">
+                  {/* Card 1: Student Information matching Screenshot 2 */}
+                  <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4 text-left">
+                    <h3 className="font-extrabold text-slate-800 text-sm tracking-tight border-b border-slate-50 pb-2">Student Information</h3>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">First Name *</label>
+                        <input
+                          type="text"
+                          required
+                          value={newStudFirstName}
+                          onChange={(e) => setNewStudFirstName(e.target.value)}
+                          placeholder="First Name"
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white min-h-[40px] transition-all"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">Last Name *</label>
+                        <input
+                          type="text"
+                          required
+                          value={newStudLastName}
+                          onChange={(e) => setNewStudLastName(e.target.value)}
+                          placeholder="Last Name"
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white min-h-[40px] transition-all"
+                        />
+                      </div>
+                    </div>
+
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase">Supervising Grade Cohort</label>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Address</label>
+                      <input
+                        type="text"
+                        value={newStudAddress}
+                        onChange={(e) => setNewStudAddress(e.target.value)}
+                        placeholder="Home address"
+                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white min-h-[40px] transition-all"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Class *</label>
                       <select 
                         value={newStudGrade}
                         onChange={(e) => setNewStudGrade(e.target.value)}
-                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs sm:text-sm text-slate-750 focus:outline-none focus:border-[#1e40af]/30 min-h-[44px]"
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-755 focus:outline-none focus:border-emerald-500 min-h-[40px] transition-all"
                       >
+                        <option value="General">General</option>
                         <option value="Grade 1B">Grade 1B</option>
                         <option value="Grade 3A">Grade 3A</option>
                         <option value="Grade 5">Grade 5</option>
-                        <option value="Nursery B">Nursery B</option>
                       </select>
                     </div>
+                  </div>
+
+                  {/* Card 2: Parent / Guardian matching Screenshot 2 & 3 */}
+                  <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4 text-left">
+                    <div>
+                      <h3 className="font-extrabold text-slate-800 text-sm tracking-tight border-b border-slate-50 pb-2">Parent / Guardian</h3>
+                      <p className="text-[10px] text-slate-450 mt-1 leading-relaxed">
+                        Enter the parent username first. If they already exist, their details will auto-fill and this student will be linked — no duplicate account.
+                      </p>
+                    </div>
+
                     <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase">Link Guardian (Emergency Contact)</label>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Parent username *</label>
                       <input
                         type="text"
                         required
-                        value={newStudParent}
-                        onChange={(e) => setNewStudParent(e.target.value)}
-                        placeholder="e.g. Olumide Johnson"
-                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-[#1e40af]/30 min-h-[44px]"
+                        value={newStudParentUsername}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNewStudParentUsername(val);
+                          // Auto fill if equals 'doejane'
+                          if (val.trim().toLowerCase() === 'doejane') {
+                            setNewStudParent('doe jane');
+                            setNewStudParentPhone('—');
+                            setNewStudParentEmail('jane@doejane.org');
+                            setToastText("Parent matched! Auto-filled profile.");
+                            setTimeout(() => setToastText(''), 1500);
+                          }
+                        }}
+                        placeholder="e.g. jsmith"
+                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white min-h-[40px] transition-all"
                       />
                     </div>
-                  </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase">Smart RFID Token Identifier (Optional)</label>
-                    <div className="flex gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Parent name</label>
                       <input
                         type="text"
-                        value={newStudRfid}
-                        onChange={(e) => setNewStudRfid(e.target.value)}
-                        placeholder="Prefix RFID-XXXXX or scan to register"
-                        className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-[#1e40af]/30 min-h-[44px]"
+                        value={newStudParent}
+                        onChange={(e) => setNewStudParent(e.target.value)}
+                        placeholder="Parent full name"
+                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white min-h-[40px] transition-all"
                       />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const randomVal = 'RFID-' + Math.floor(10000 + Math.random() * 90000);
-                          setNewStudRfid(randomVal);
-                          setToastText("Scanner hardware read success!");
-                          setTimeout(() => setToastText(''), 1500);
-                        }}
-                        className="px-3.5 py-2.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-850 hover:text-emerald-950 font-extrabold text-xs rounded-xl flex items-center justify-center cursor-pointer border-none"
-                      >
-                        Scan Hardware Link
-                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">Parent phone</label>
+                        <input
+                          type="text"
+                          value={newStudParentPhone}
+                          onChange={(e) => setNewStudParentPhone(e.target.value)}
+                          placeholder="e.g. +234 803 111 2222"
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white min-h-[40px] transition-all"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">Parent email</label>
+                        <input
+                          type="email"
+                          value={newStudParentEmail}
+                          onChange={(e) => setNewStudParentEmail(e.target.value)}
+                          placeholder="e.g. parents@example.com"
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white min-h-[40px] transition-all"
+                        />
+                      </div>
                     </div>
                   </div>
+                </div>
 
-                  <button
-                    type="submit"
-                    className="w-full py-2.5 bg-[#1e40af] hover:bg-[#1e3a8a] text-white font-black text-xs rounded-xl shadow-xs transition-colors cursor-pointer min-h-[44px] border-none"
-                  >
-                    Register Scholar profile
-                  </button>
-                </form>
-              </div>
+                {/* Right Camera capturing mockup strictly matching Screenshot 3 */}
+                <div className="space-y-6">
+                  <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4 text-left h-full flex flex-col">
+                    <div>
+                      <h3 className="font-extrabold text-slate-800 text-sm tracking-tight border-b border-slate-50 pb-2">Student face & ID photo *</h3>
+                      <p className="text-[10px] text-slate-450 mt-1 leading-relaxed">
+                        Take 3 clear photos. Use back camera to photograph the student; flip to front if needed.
+                      </p>
+                    </div>
 
-              <div className="bg-[#1e3a8a] text-white rounded-3xl p-6 flex flex-col justify-between text-left shadow-lg">
-                <div className="space-y-4">
-                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-                    <Sparkles size={20} className="text-[#fbbf24] animate-pulse" />
-                  </div>
-                  <h3 className="font-extrabold text-base">Quick RFID Coupling</h3>
-                  <p className="text-xs text-blue-100 leading-relaxed font-semibold">
-                    Our terminal uses a standard RFID framework operating on 13.56 MHz frequencies to pair with microchips embedded inside secure pupil ID cards.
-                  </p>
-                  <div className="p-3 bg-white/5 rounded-xl border border-white/10">
-                    <span className="text-[9px] uppercase tracking-wider text-amber-450 font-bold block">Status</span>
-                    <p className="text-xs font-bold text-white mt-1">● Terminal Scanner: Syncing</p>
+                    {/* Highly aesthetic simulation lens viewport */}
+                    <div className="flex-1 bg-slate-900 rounded-2xl overflow-hidden p-4 relative min-h-[220px] flex flex-col justify-between border-2 border-dashed border-slate-800">
+                      
+                      <div className="flex justify-between items-center z-10">
+                        <span className="px-2 py-0.5 bg-emerald-500 text-white rounded-md font-mono text-[9px] font-black tracking-widest animate-pulse">
+                          ● SIM CAMERA
+                        </span>
+                        <span className="text-[10px] text-slate-450 font-bold bg-white/10 px-2 py-0.5 rounded-md">
+                          Back Facing Lens
+                        </span>
+                      </div>
+
+                      {/* Overlay scanning viewfinder lines */}
+                      <div className="absolute inset-0 flex items-center justify-center p-8 pointer-events-none">
+                        <div className="w-48 h-48 border-2 border-emerald-500/40 rounded-full flex items-center justify-center relative animate-pulse">
+                          <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                          <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-emerald-500" />
+                          <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-emerald-500" />
+                          <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-emerald-500" />
+                          <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-emerald-500" />
+                        </div>
+                      </div>
+
+                      {/* Display captured photos indicator */}
+                      <div className="text-center z-10 py-6">
+                        <p className="text-slate-300 text-xs font-bold font-mono">
+                          {newStudPhotosCount > 0 ? "Pupil Photo Capture Lens Active" : "Click Below to Capture First Frame"}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col gap-2.5 items-center z-10">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (newStudPhotosCount < 3) {
+                              setNewStudPhotosCount(prev => prev + 1);
+                              setToastText(`Photo ${newStudPhotosCount + 1}/3 captured!`);
+                              setTimeout(() => setToastText(''), 1500);
+                            } else {
+                              setToastText("All 3 photos already captured!");
+                              setTimeout(() => setToastText(''), 1500);
+                            }
+                          }}
+                          className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-900 border-none rounded-xl font-black text-xs cursor-pointer flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg w-full"
+                        >
+                          <Camera size={16} className="text-emerald-500" />
+                          Open camera (Back camera)
+                        </button>
+                        
+                        <div className="text-xs font-black select-none tracking-tight">
+                          <span className={newStudPhotosCount === 3 ? "text-emerald-500" : "text-amber-500"}>
+                            {newStudPhotosCount}/3 photos captured
+                          </span>
+                        </div>
+
+                        {/* Interactive miniature captured frames */}
+                        <div className="flex gap-2.5 justify-center mt-1">
+                          {[1, 2, 3].map((val) => (
+                            <div 
+                              key={val} 
+                              className={`w-10 h-10 rounded-lg border-2 flex items-center justify-center font-mono text-[10px] font-bold ${
+                                newStudPhotosCount >= val 
+                                  ? 'bg-emerald-600/30 border-emerald-500 text-emerald-400' 
+                                  : 'bg-black/40 border-slate-700 text-slate-600'
+                              }`}
+                            >
+                              {newStudPhotosCount >= val ? <Check size={14} className="animate-bounce" /> : `#${val}`}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                    </div>
                   </div>
                 </div>
-                <div className="text-[10px] text-blue-200 font-mono mt-6 border-t border-white/10 pt-4">
-                  SECURED TERMINATION GATEWAY
-                </div>
+
               </div>
-            </div>
+
+              {/* Add Student CTA Button */}
+              <div className="flex justify-end pt-3 text-left">
+                <button
+                  type="submit"
+                  className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-lg shadow-sm transition-all cursor-pointer flex items-center gap-2.5 border-none"
+                >
+                  <Check size={15} />
+                  <span>Add Student</span>
+                </button>
+              </div>
+
+            </form>
           </div>
         )}
 
@@ -1674,54 +1885,120 @@ export default function SchoolAdminDashboard() {
           <div className="space-y-6 animate-in fade-in duration-200 text-left">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h2 className="text-xl font-black text-slate-800 tracking-tight text-left">STAFF & PORTAL HANDLERS</h2>
-                <p className="text-xs text-slate-500">View registered node officers and terminal controllers.</p>
+                <span className="text-[10px] font-black text-blue-500 tracking-wider uppercase block mb-1">STAFF</span>
+                <h2 className="text-2xl font-black text-slate-800 tracking-tight text-left">Staff list ({staffList.length})</h2>
+                <p className="text-xs text-slate-500">Manage roles, edit contact parameters, or authorize/revoke app login credentials.</p>
               </div>
               <button 
                 onClick={() => setActiveTab('staff-add')}
-                className="flex items-center gap-1.5 px-4 py-2 bg-[#1e40af] hover:bg-[#1e3a8a] text-white font-extrabold text-xs rounded-xl cursor-pointer shadow-sm border-none self-start sm:self-auto"
+                className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg cursor-pointer shadow-sm border-none self-start sm:self-auto transition-colors"
               >
                 <Plus size={14} />
-                <span>Register New Staff</span>
+                <span>+ Add Staff</span>
               </button>
             </div>
 
-            <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-xs">
-              <div className="overflow-x-auto rounded-2xl border border-slate-100">
+            <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4">
+              {/* Controls bar */}
+              <div className="relative w-full">
+                <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search name, role, email or phone..."
+                  value={activitySearch}
+                  onChange={(e) => setActivitySearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white min-h-[38px] transition-all"
+                />
+              </div>
+
+              {/* Table rendering matching general aesthetic */}
+              <div className="overflow-x-auto rounded-xl border border-slate-100">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 font-black text-[9px] uppercase tracking-wider">
-                      <th className="p-4">Staff Name</th>
-                      <th className="p-4">Assigned Role</th>
-                      <th className="p-4">Contact Parameter</th>
-                      <th className="p-4">Operating Phone</th>
-                      <th className="p-4">Sync Code</th>
-                      <th className="p-4">Status</th>
+                    <tr className="bg-slate-50 border-b border-slate-100 text-slate-455 font-black text-[10px] uppercase tracking-wider">
+                      <th className="p-4">STAFF NAME</th>
+                      <th className="p-4">ROLE</th>
+                      <th className="p-4">CONTACTS</th>
+                      <th className="p-4">PORTAL ACCESS</th>
+                      <th className="p-4 text-right">ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50 text-xs">
-                    {staffList.map(stf => (
-                      <tr key={stf.id} className="hover:bg-slate-50/40 transition-colors">
-                        <td className="p-4 flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center">
-                            {stf.name.split(' ').pop()?.slice(0,2)}
-                          </div>
-                          <div>
-                            <span className="font-extrabold text-slate-805">{stf.name}</span>
-                            <p className="text-[9px] text-slate-400 font-semibold uppercase">{stf.id}</p>
-                          </div>
-                        </td>
-                        <td className="p-4 font-bold text-[#1e40af]">{stf.role}</td>
-                        <td className="p-4 text-slate-505 font-medium">{stf.email}</td>
-                        <td className="p-4 text-slate-600 font-bold">{stf.phone}</td>
-                        <td className="p-4 font-mono text-[10px] text-slate-400 uppercase">SYS-LAG-{stf.id.split('-')[1] || '01'}</td>
-                        <td className="p-4">
-                          <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 font-bold border border-emerald-100 rounded-full text-[10px]">
-                            ● {stf.status.toUpperCase()}
-                          </span>
+                    {staffList
+                      .filter(stf => {
+                        const q = activitySearch.toLowerCase();
+                        if (!q) return true;
+                        return `${stf.name} ${stf.role} ${stf.email} ${stf.phone}`.toLowerCase().includes(q);
+                      })
+                      .map(stf => (
+                        <tr key={stf.id} className="hover:bg-slate-50/40 transition-colors">
+                          <td className="p-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-800 font-black flex items-center justify-center text-[10px] uppercase border border-slate-200">
+                                {stf.name.split(' ').pop()?.slice(0, 2)}
+                              </div>
+                              <div>
+                                <span className="font-bold text-slate-800 text-sm">{stf.name}</span>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">{stf.id}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-4 font-bold text-blue-650">
+                            <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-[10.5px] font-extrabold border border-blue-100">
+                              {stf.role}
+                            </span>
+                          </td>
+                          <td className="p-4">
+                            <p className="font-semibold text-slate-700">{stf.email}</p>
+                            <p className="text-[10px] text-slate-400 font-bold">{stf.phone}</p>
+                          </td>
+                          <td className="p-4">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                              stf.status === 'active' 
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
+                                : 'bg-slate-50 text-slate-600 border-slate-200'
+                            }`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${stf.status === 'active' ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                              {stf.status === 'active' ? 'Authorized' : 'Disabled'}
+                            </span>
+                          </td>
+                          <td className="p-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button 
+                                onClick={() => {
+                                  // Toggle status
+                                  setStaffList(prev => prev.map(item => item.id === stf.id ? { ...item, status: item.status === 'active' ? 'inactive' : 'active' } : item));
+                                  setToastText(`Portal access for ${stf.name} updated.`);
+                                  setTimeout(() => setToastText(''), 1500);
+                                }}
+                                title="Toggle Portal Access"
+                                className="p-1.5 hover:bg-slate-100 text-slate-600 hover:text-slate-900 rounded-lg cursor-pointer transition-colors border-none bg-transparent"
+                              >
+                                <RefreshCw size={14} />
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  setStaffList(prev => prev.filter(item => item.id !== stf.id));
+                                  setToastText("Staff member dropped from portal registry.");
+                                  setTimeout(() => setToastText(''), 1500);
+                                }}
+                                title="Delete Staff"
+                                className="p-1.5 hover:bg-rose-50 text-rose-600 hover:text-rose-700 rounded-lg cursor-pointer transition-colors border-none bg-transparent"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    {staffList.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="p-8 text-center text-slate-400">
+                          <Inbox className="mx-auto text-slate-350 mb-2" size={28} />
+                          <p className="text-xs font-semibold">No registered staff handlers found inside node registry.</p>
                         </td>
                       </tr>
-                    ))}
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1731,82 +2008,96 @@ export default function SchoolAdminDashboard() {
 
         {activeTab === 'staff-add' && (
           <div className="space-y-6 animate-in fade-in duration-200 text-left">
+            <button 
+              onClick={() => setActiveTab('staff-list')}
+              className="flex items-center gap-1.5 text-xs font-bold text-slate-505 hover:text-slate-800 transition-colors border-none bg-transparent cursor-pointer"
+            >
+              <ArrowLeft size={14} />
+              <span>Back</span>
+            </button>
+
             <div>
-              <h2 className="text-xl font-black text-slate-800 tracking-tight text-left">ENROL PORTAL EXECUTIVE</h2>
-              <p className="text-xs text-slate-500">Enable administrative dashboard authorization for teachers or route operators.</p>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight">Add Staff</h2>
+              <p className="text-xs text-slate-550">Create a new portal operator. Configure secure login credentials and role permissions.</p>
             </div>
 
-            <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-xs max-w-2xl text-left">
-              <legend className="font-extrabold text-slate-800 text-xs tracking-wider uppercase mb-4 border-b border-slate-50 pb-2">Academic Enrolment Keycard</legend>
-              
-              {newStaffSuccess && (
-                <div className="p-4 mb-4 bg-emerald-50 text-emerald-800 text-xs font-bold rounded-2xl border border-emerald-200">
-                  {newStaffSuccess}
-                </div>
-              )}
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (!newStaffName || !newStaffEmail || !newStaffPhone) {
+                setToastText("Error: Name, email, and phone parameters are mandatory!");
+                setTimeout(() => setToastText(''), 2000);
+                return;
+              }
 
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                if (!newStaffName || !newStaffEmail || !newStaffPhone) {
-                  setToastText("Please fill out name, phone, and email!");
+              if (newStaffAppAccess) {
+                if (!newStaffUsername || !newStaffPassword) {
+                  setToastText("Error: Please input login credentials since portal access toggled!");
                   setTimeout(() => setToastText(''), 2000);
                   return;
                 }
-                const index = staffList.length + 1;
-                const newObj = {
-                  id: 'stf-' + index,
-                  name: newStaffName,
-                  role: newStaffRole,
-                  email: newStaffEmail,
-                  phone: newStaffPhone,
-                  status: 'active'
-                };
-                setStaffList(prev => [...prev, newObj]);
+                if (newStaffPassword !== newStaffConfirmPassword) {
+                  setToastText("Error: Passwords do not match!");
+                  setTimeout(() => setToastText(''), 2000);
+                  return;
+                }
+              }
+
+              const newId = 'stf-' + (staffList.length + 101);
+              const newObj = {
+                id: newId,
+                name: newStaffName,
+                role: newStaffRole,
+                email: newStaffEmail,
+                phone: newStaffPhone,
+                status: 'active'
+              };
+
+              setStaffList(prev => [newObj, ...prev]);
+
+              setToastText("Staff successfully authorized!");
+              setNewStaffSuccess("Staff member added successfully!");
+
+              // Reset
+              setNewStaffName('');
+              setNewStaffEmail('');
+              setNewStaffPhone('');
+              setNewStaffUsername('');
+              setNewStaffPassword('');
+              setNewStaffConfirmPassword('');
+              setNewStaffAppAccess(false);
+
+              setTimeout(() => {
+                setNewStaffSuccess('');
+                setToastText('');
+                setActiveTab('staff-list');
+              }, 1800);
+
+            }} className="space-y-6 max-w-4xl">
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
-                // Track update
-                setSystemLogs(prev => [
-                  { id: Date.now().toString(), action: `Enrolled new staff: ${newStaffName}`, user: 'Lagos admin', target: newStaffRole, timestamp: new Date().toISOString().replace('T',' ').slice(0,19), status: 'success' },
-                  ...prev
-                ]);
-
-                // Update total teachers stats count
-                setStats(prev => ({
-                  ...prev,
-                  total_teachers: (prev.total_teachers || 0) + 1
-                }));
-
-                setNewStaffSuccess(`Success! ${newStaffName} successfully enrolled as ${newStaffRole}`);
-                setNewStaffName('');
-                setNewStaffEmail('');
-                setNewStaffPhone('');
-                
-                setToastText("Staff added successfully!");
-                setTimeout(() => {
-                  setNewStaffSuccess('');
-                  setToastText('');
-                  setActiveTab('staff-list');
-                }, 2200);
-
-              }} className="space-y-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase">Staff Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={newStaffName}
-                    onChange={(e) => setNewStaffName(e.target.value)}
-                    placeholder="e.g. Mrs. Funke Adebisele"
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-[#1e40af]/30 min-h-[44px]"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Panel 1: Staff Bio */}
+                <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4 text-left">
+                  <h3 className="font-extrabold text-slate-800 text-sm tracking-tight border-b border-slate-50 pb-2">Staff Information</h3>
+                  
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase">Security Clearance / Role</label>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">First & Last Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={newStaffName}
+                      onChange={(e) => setNewStaffName(e.target.value)}
+                      placeholder="e.g. Mrs. Funke Adebisele"
+                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white min-h-[40px] transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">Security Clearance / Role *</label>
                     <select
                       value={newStaffRole}
                       onChange={(e) => setNewStaffRole(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs sm:text-sm text-slate-700 focus:outline-none focus:border-[#1e40af]/30 min-h-[44px]"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-755 focus:outline-none focus:border-blue-500 min-h-[40px] transition-all"
                     >
                       <option value="Grade 1 Teacher">Grade 1 Teacher</option>
                       <option value="Grade 3 Teacher">Grade 3 Teacher</option>
@@ -1815,39 +2106,108 @@ export default function SchoolAdminDashboard() {
                       <option value="Assistant Principal">Assistant Principal</option>
                     </select>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase">Interactive Log Email</label>
-                    <input
-                      type="email"
-                      required
-                      value={newStaffEmail}
-                      onChange={(e) => setNewStaffEmail(e.target.value)}
-                      placeholder="e.g. funke@myeduride.academy"
-                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-[#1e40af]/30 min-h-[44px]"
-                    />
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">SMS Phone *</label>
+                      <input
+                        type="text"
+                        required
+                        value={newStaffPhone}
+                        onChange={(e) => setNewStaffPhone(e.target.value)}
+                        placeholder="+234 803 999 1111"
+                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white min-h-[40px] transition-all"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Email Address *</label>
+                      <input
+                        type="email"
+                        required
+                        value={newStaffEmail}
+                        onChange={(e) => setNewStaffEmail(e.target.value)}
+                        placeholder="fadebisele@academy.org"
+                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white min-h-[40px] transition-all"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase">Phone Parameter (Lagos / Transit Notifications)</label>
-                  <input
-                    type="text"
-                    required
-                    value={newStaffPhone}
-                    onChange={(e) => setNewStaffPhone(e.target.value)}
-                    placeholder="e.g. +234 803 999 1111"
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-[#1e40af]/30 min-h-[44px]"
-                  />
+                {/* Panel 2: App Credentials Access */}
+                <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4 text-left flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="font-extrabold text-slate-800 text-sm tracking-tight border-b border-slate-50 pb-2">Web / App Access</h3>
+                      <p className="text-[10px] text-slate-450 mt-1 leading-relaxed">
+                        Toggle authorization to let this staff log into the administrative terminal.
+                      </p>
+                    </div>
+
+                    <label className="flex items-center gap-2 px-3 py-2.5 bg-slate-50 border border-slate-100 rounded-xl cursor-pointer select-none">
+                      <input 
+                        type="checkbox"
+                        checked={newStaffAppAccess}
+                        onChange={(e) => setNewStaffAppAccess(e.target.checked)}
+                        className="rounded text-emerald-600 focus:ring-emerald-500" 
+                      />
+                      <span className="text-xs font-bold text-slate-700">Grant portal app access</span>
+                    </label>
+
+                    {newStaffAppAccess && (
+                      <div className="space-y-3 p-4 bg-slate-50 border border-slate-200 rounded-xl animate-in slide-in-from-top-2 duration-200">
+                        <div className="space-y-1">
+                          <label className="text-[9px] font-black text-blue-600 uppercase">Portal Username *</label>
+                          <input
+                            type="text"
+                            required
+                            value={newStaffUsername}
+                            onChange={(e) => setNewStaffUsername(e.target.value)}
+                            placeholder="e.g. fadebisele"
+                            className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-blue-500"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-black text-blue-600 uppercase">Secret Password *</label>
+                            <input
+                              type="password"
+                              required
+                              value={newStaffPassword}
+                              onChange={(e) => setNewStaffPassword(e.target.value)}
+                              placeholder="••••••••"
+                              className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-blue-500"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[9px] font-black text-blue-600 uppercase">Confirm Password *</label>
+                            <input
+                              type="password"
+                              required
+                              value={newStaffConfirmPassword}
+                              onChange={(e) => setNewStaffConfirmPassword(e.target.value)}
+                              placeholder="••••••••"
+                              className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-blue-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end pt-3">
+                    <button
+                      type="submit"
+                      className="px-8 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-lg shadow-sm transition-all cursor-pointer flex items-center gap-1.5 border-none"
+                    >
+                      <Check size={14} />
+                      <span>Add Staff</span>
+                    </button>
+                  </div>
                 </div>
 
-                <button
-                  type="submit"
-                  className="w-full py-2.5 bg-[#1e40af] hover:bg-[#1e3a8a] text-white font-extrabold text-xs rounded-xl shadow-xs transition-colors cursor-pointer min-h-[44px] border-none"
-                >
-                  Verify and Authorize Portal Staff
-                </button>
-              </form>
-            </div>
+              </div>
+
+            </form>
           </div>
         )}
 
@@ -2444,23 +2804,253 @@ export default function SchoolAdminDashboard() {
         {activeTab === 'student-staff-scan' && (
           <div className="space-y-6 animate-in fade-in duration-200 text-left">
             <div>
-              <h2 className="text-xl font-black text-slate-800 tracking-tight text-left">RFID TERMINAL INTEGRATION</h2>
-              <p className="text-xs text-slate-505">Instantly perform mockup sweeps for RFID tags, simulating hardware reader transactions.</p>
+              <span className="text-[10px] font-black text-emerald-500 tracking-wider uppercase block mb-1">TERMINAL SCANNER</span>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight text-left">RFID simulation console</h2>
+              <p className="text-xs text-slate-505">Simulate smart RFID reader badge sweeps. Manually trigger transit events, track status, or capture snapshots.</p>
             </div>
 
-            <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-xs max-w-lg text-left">
-              <span className="text-xs font-black text-slate-800 block uppercase tracking-tight mb-4 border-b border-gray-50 pb-2">Hardware Sweeper Console</span>
+            {/* Sub-tabs selectors */}
+            <div className="flex border-b border-slate-100 gap-6">
+              <button
+                onClick={() => setScanTab('student')}
+                className={`pb-2.5 font-bold text-xs cursor-pointer border-b-2 bg-transparent transition-all px-1 ${
+                  scanTab === 'student' 
+                    ? 'border-emerald-600 text-slate-800 font-extrabold' 
+                    : 'border-transparent text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                Student Swipe
+              </button>
+              <button
+                onClick={() => setScanTab('staff')}
+                className={`pb-2.5 font-bold text-xs cursor-pointer border-b-2 bg-transparent transition-all px-1 ${
+                  scanTab === 'staff' 
+                    ? 'border-emerald-600 text-slate-800 font-extrabold' 
+                    : 'border-transparent text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                Staff Swipe
+              </button>
+            </div>
 
-              <div className="space-y-4">
-                <p className="text-xs text-slate-505 font-medium">To test instant parent SMS warning triggers, select a student node then broadcast their check-in direction.</p>
-                <button
-                  onClick={() => setIsScanModalOpen(true)}
-                  className="w-full flex items-center justify-center gap-2 px-5 py-4 bg-[#1e40af] hover:bg-[#1e3a8a] text-white text-xs font-black rounded-2xl cursor-pointer border-none shadow transition-all"
-                >
-                  <QrCode size={18} className="text-yellow-400 animate-spin" />
-                  <span>Launch RFID Sweep Simulator Widget</span>
-                </button>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              {/* Sweep configuration form */}
+              <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-6 text-left">
+                {scanTab === 'student' ? (
+                  <div className="space-y-4">
+                    <h3 className="font-extrabold text-slate-850 text-sm tracking-tight border-b border-slate-50 pb-2">Student Swipe Simulator</h3>
+                    
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Select Target Student</label>
+                      <select
+                        value={studentScanId}
+                        onChange={(e) => setStudentScanId(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-755 focus:outline-none focus:border-emerald-500 min-h-[40px]"
+                      >
+                        <option value="">-- Choose student from active roster --</option>
+                        {students.map(st => (
+                          <option key={st.id} value={st.id}>
+                            {st.first_name} {st.last_name} ({st.grade}) - Current Status: {st.status === 'present' ? 'On Station' : 'Checked Out'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">Action Sweep Direction</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setStudentScanDirection('in')}
+                          className={`py-2 px-4 rounded-xl border font-bold text-xs cursor-pointer transition-all flex items-center justify-center gap-2 ${
+                            studentScanDirection === 'in'
+                              ? 'bg-emerald-50 border-emerald-500 text-emerald-800 ring-2 ring-emerald-500/20'
+                              : 'bg-slate-50/50 border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className={`w-2 h-2 rounded-full bg-emerald-500 ${studentScanDirection === 'in' ? 'animate-ping' : ''}`} />
+                          Check In (Present)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setStudentScanDirection('out')}
+                          className={`py-2 px-4 rounded-xl border font-bold text-xs cursor-pointer transition-all flex items-center justify-center gap-2 ${
+                            studentScanDirection === 'out'
+                              ? 'bg-rose-50 border-rose-500 text-rose-800 ring-2 ring-rose-500/20'
+                              : 'bg-slate-50/50 border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className={`w-2 h-2 rounded-full bg-rose-500 ${studentScanDirection === 'out' ? 'animate-ping' : ''}`} />
+                          Check Out (Absence)
+                        </button>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={!studentScanId}
+                      onClick={() => {
+                        const target = students.find(s => s.id === studentScanId);
+                        if (!target) return;
+
+                        // Toggle status
+                        const updatedStatus = studentScanDirection === 'in' ? 'present' : 'absent';
+                        setStudents(prev => prev.map(item => item.id === target.id ? { ...item, status: updatedStatus } : item));
+
+                        // Append to activitylogs
+                        const newEventLog = {
+                          id: Date.now().toString(),
+                          action: `${target.first_name} ${target.last_name} scanned RFID card [${target.rfid}]`,
+                          user: "Terminal Station A",
+                          target: studentScanDirection === 'in' ? 'Check In / Arrival' : 'Check Out / Departure',
+                          status: 'success',
+                          timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19)
+                        };
+                        setSystemLogs(prev => [newEventLog, ...prev]);
+
+                        // Show success alert
+                        setToastText(`Successfully completed RFID Sweep for ${target.first_name}! SMS warning dispatched to parent.`);
+                        setTimeout(() => setToastText(''), 3000);
+                      }}
+                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-100 disabled:text-slate-400 text-white font-black text-xs rounded-xl transition-all cursor-pointer border-none shadow-sm flex items-center justify-center gap-2"
+                    >
+                      <QrCode size={15} />
+                      <span>Simulate Student RFID Badge Sweep</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <h3 className="font-extrabold text-slate-850 text-sm tracking-tight border-b border-slate-50 pb-2">Staff Swipe Simulator</h3>
+                    
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Select Target Staff</label>
+                      <select
+                        value={staffScanId}
+                        onChange={(e) => setStaffScanId(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-755 focus:outline-none focus:border-blue-500 min-h-[40px]"
+                      >
+                        <option value="">-- Choose staff member from system index --</option>
+                        {staffList.map(st => (
+                          <option key={st.id} value={st.id}>
+                            {st.name} ({st.role}) - Current Clearance: {st.status === 'active' ? 'Authorized' : 'Suspended'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">Action clearance sweep</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setStaffScanDirection('in')}
+                          className={`py-2 px-4 rounded-xl border font-bold text-xs cursor-pointer transition-all flex items-center justify-center gap-2 ${
+                            staffScanDirection === 'in'
+                              ? 'bg-blue-50 border-blue-500 text-blue-800 ring-2 ring-blue-500/20'
+                              : 'bg-slate-50/50 border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="w-2 h-2 rounded-full bg-blue-500" />
+                          Access Authorized
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setStaffScanDirection('out')}
+                          className={`py-2 px-4 rounded-xl border font-bold text-xs cursor-pointer transition-all flex items-center justify-center gap-2 ${
+                            staffScanDirection === 'out'
+                              ? 'bg-amber-50 border-amber-500 text-amber-800 ring-2 ring-amber-500/20'
+                              : 'bg-slate-50/50 border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="w-2 h-2 rounded-full bg-amber-500" />
+                          Authorized Log Out
+                        </button>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={!staffScanId}
+                      onClick={() => {
+                        const target = staffList.find(s => s.id === staffScanId);
+                        if (!target) return;
+
+                        // Append to auditlogs
+                        const newEventLog = {
+                          id: Date.now().toString(),
+                          action: `Staff ${target.name} swiped gateway RFID credentials`,
+                          user: target.name,
+                          target: staffScanDirection === 'in' ? 'Gateway Access Granted' : 'Standard Log Out',
+                          status: 'success',
+                          timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19)
+                        };
+                        setSystemLogs(prev => [newEventLog, ...prev]);
+
+                        setToastText(`SIMULATION: Access point authorization verified for ${target.name}.`);
+                        setTimeout(() => setToastText(''), 3000);
+                      }}
+                      className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-100 disabled:text-slate-400 text-white font-black text-xs rounded-xl transition-all cursor-pointer border-none shadow-sm flex items-center justify-center gap-2"
+                    >
+                      <CheckCircle2 size={15} />
+                      <span>Authenticate Staff Entry Clearance</span>
+                    </button>
+                  </div>
+                )}
               </div>
+
+              {/* Simulated camera capture viewfinder preview panel on right */}
+              <div className="bg-slate-900 text-white rounded-2xl p-6 flex flex-col justify-between border border-slate-800 shadow-lg text-left h-full">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                    <span className="text-[10px] uppercase font-black text-emerald-400 tracking-wider">Lagos Assembly Terminal</span>
+                    <span className={`w-2 h-2 rounded-full bg-emerald-500 ${cameraActive ? 'animate-ping' : ''}`} />
+                  </div>
+
+                  <p className="text-xs text-slate-350 leading-relaxed font-semibold">
+                    Each sweep automatically captures a real-time face image of the pupil or operator at the gateway node to compare against registered registry files.
+                  </p>
+
+                  <div className="bg-black/40 rounded-xl p-4 border border-slate-800 space-y-3">
+                    <div className="flex justify-between items-center text-xs font-bold text-slate-400">
+                      <span>Gateway Cam Status</span>
+                      <span className={cameraActive ? "text-emerald-400" : "text-amber-500"}>
+                        {cameraActive ? "Live Stream Feeding" : "Offline / Idle"}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setCameraActive(!cameraActive)}
+                      className={`w-full py-2 rounded-lg font-bold text-xs cursor-pointer border-none flex items-center justify-center gap-1.5 transition-all ${
+                        cameraActive 
+                          ? 'bg-rose-600/25 text-rose-300 hover:bg-rose-650/40' 
+                          : 'bg-emerald-600/20 text-emerald-300 hover:bg-emerald-500/30'
+                      }`}
+                    >
+                      <Video size={14} />
+                      <span>{cameraActive ? "Douse Camera Feed" : "Activate Security Lens"}</span>
+                    </button>
+
+                    {cameraActive && (
+                      <div className="h-28 rounded-lg bg-teal-950/20 border border-teal-800/45 flex items-center justify-center relative overflow-hidden animate-in fade-in duration-350">
+                        <div className="absolute inset-x-0 top-0 h-0.5 bg-emerald-500/60 animate-bounce" />
+                        <span className="font-mono text-[9px] font-bold text-emerald-400 tracking-widest uppercase">
+                          FEEDING GATE SNAPSHOT
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="text-[10px] text-slate-500 font-mono mt-6 border-t border-slate-800 pt-4 flex justify-between items-center">
+                  <span>TERMINAL REF: LAG-SWIPE-04</span>
+                  <span className="flex items-center gap-1 text-emerald-500/70">
+                    <Wifi size={10} className="animate-pulse" /> ONLINE
+                  </span>
+                </div>
+              </div>
+
             </div>
           </div>
         )}
