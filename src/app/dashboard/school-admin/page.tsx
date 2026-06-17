@@ -9,7 +9,7 @@ import {
   Calendar, CreditCard, ChevronRight, ChevronDown, CheckCircle2, HelpCircle, Inbox,
   LayoutDashboard, Menu, Lock, Settings, Printer, Download, LogOut, Sliders,
   Edit, ShieldAlert, Layers, KeyRound, User, Trash2, Camera, RefreshCw, ArrowUpCircle, Video, Key, Clock, Landmark, Wifi,
-  List, UserPlus
+  List, UserPlus, AlertCircle, XCircle
 } from 'lucide-react';
 import Link from 'next/link';
 import StudentAvatar from '@/components/shared/StudentAvatar';
@@ -48,7 +48,9 @@ export default function SchoolAdminDashboard() {
     { id: 'STU-F950-MQBSEC90', first_name: 'john', last_name: 'doe', grade: 'General', parent: 'doe jane', rfid: 'RFID-12345', status: 'present', photo_url: null },
     { id: 'std-1', first_name: 'Chinedu', last_name: 'Alabi', grade: 'Grade 3A', parent: 'Olumide Johnson', rfid: 'RFID-98327', status: 'present', photo_url: null },
     { id: 'std-2', first_name: 'Funmi', last_name: 'Balogun', grade: 'Grade 1B', parent: 'Mrs. Balogun', rfid: 'RFID-48231', status: 'absent', photo_url: null },
-    { id: 'std-3', first_name: 'Tobi', last_name: 'Adeleke', grade: 'Grade 5', parent: 'Mr. Adeleke', rfid: 'RFID-10294', status: 'present', photo_url: null }
+    { id: 'std-3', first_name: 'Tobi', last_name: 'Adeleke', grade: 'Grade 5', parent: 'Mr. Adeleke', rfid: 'RFID-10294', status: 'present', photo_url: null },
+    { id: 'std-4', first_name: 'Amara', last_name: 'Okonkwo', grade: 'Grade 2', parent: 'Mrs. Okonkwo', rfid: 'RFID-50124', status: 'absent', photo_url: null },
+    { id: 'std-5', first_name: 'Zainab', last_name: 'Musa', grade: 'Grade 4C', parent: 'Mr. Musa', rfid: 'RFID-77123', status: 'present', photo_url: null }
   ]);
 
   const [staffList, setStaffList] = useState([
@@ -127,7 +129,7 @@ export default function SchoolAdminDashboard() {
   const [isFrontCamera, setIsFrontCamera] = useState(false);
   const [pickupSearchQuery, setPickupSearchQuery] = useState('');
   const [pickupIsLoading, setPickupIsLoading] = useState(false);
-  const [scanLogDate, setScanLogDate] = useState('2026-06-16');
+  const [scanLogDate, setScanLogDate] = useState('2026-06-17');
   const [scanLogShowFilter, setScanLogShowFilter] = useState<'all' | 'students' | 'staff'>('all');
   const [staffRoles, setStaffRoles] = useState(['Accountant', 'Cleaner', 'Driver', 'Subject Teacher', 'Class teacher']);
   const [newRoleInput, setNewRoleInput] = useState('');
@@ -155,6 +157,8 @@ export default function SchoolAdminDashboard() {
   // ACTIVE SCAN TERMINAL (LIVE CAMERA QR SCANNING)
   const scannerVideoRef = useRef<HTMLVideoElement | null>(null);
   const scannerCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const scannerActiveRef = useRef(false);
+  const jsqrRef = useRef<any>(null);
   const [isScannerCameraActive, setIsScannerCameraActive] = useState(false);
   const [isScannerProcessing, setIsScannerProcessing] = useState(false);
   const [scannerCameraStream, setScannerCameraStream] = useState<any>(null);
@@ -360,6 +364,7 @@ export default function SchoolAdminDashboard() {
   // SCAN TERMINAL LOGIC
   const startScannerCamera = async () => {
     setIsScannerCameraActive(true);
+    scannerActiveRef.current = true;
     setScannedResultPayload(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -387,12 +392,13 @@ export default function SchoolAdminDashboard() {
         scannerCameraStream.getTracks().forEach((track: any) => track.stop());
       } catch (err) {}
     }
+    scannerActiveRef.current = false;
     setIsScannerCameraActive(false);
     setScannerCameraStream(null);
   };
 
   const tickScannerQR = (activeStream: any) => {
-    if (!scannerVideoRef.current || !activeStream) return;
+    if (!scannerVideoRef.current || !activeStream || !scannerActiveRef.current) return;
     const video = scannerVideoRef.current;
     
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
@@ -407,13 +413,21 @@ export default function SchoolAdminDashboard() {
         
         let code = null;
         try {
-          const jsQR = require('jsqr').default || require('jsqr');
-          code = jsQR(imageData.data, imageData.width, imageData.height);
+          const jsQR = jsqrRef.current || (typeof window !== 'undefined' ? (require('jsqr').default || require('jsqr')) : null);
+          if (jsQR) {
+            code = jsQR(imageData.data, imageData.width, imageData.height);
+          }
         } catch (e) {
           // jsQR fallback
         }
         
         if (code && code.data) {
+          // Stop scanning since we got a hit!
+          scannerActiveRef.current = false;
+          setIsScannerCameraActive(false);
+          try {
+            activeStream.getTracks().forEach((track: any) => track.stop());
+          } catch (err) {}
           handleSuccessfulQRDecode(code.data);
           return; // Stop scanning since we got a hit!
         }
@@ -422,7 +436,7 @@ export default function SchoolAdminDashboard() {
     
     // Check if the stream is active, and loop
     const hasTracks = activeStream.getTracks().some((t: any) => t.readyState === 'live');
-    if (hasTracks && isScannerCameraActive) {
+    if (hasTracks && scannerActiveRef.current) {
       requestAnimationFrame(() => tickScannerQR(activeStream));
     }
   };
@@ -444,20 +458,17 @@ export default function SchoolAdminDashboard() {
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           let code = null;
           try {
-            const jsQR = require('jsqr').default || require('jsqr');
-            code = jsQR(imageData.data, imageData.width, imageData.height);
+            const jsQR = jsqrRef.current || (typeof window !== 'undefined' ? (require('jsqr').default || require('jsqr')) : null);
+            if (jsQR) {
+              code = jsQR(imageData.data, imageData.width, imageData.height);
+            }
           } catch (err) {}
           
           if (code && code.data) {
             handleSuccessfulQRDecode(code.data);
           } else {
-            // Attempt to treat the raw file as a potential direct simulation of whichever ID matches!
-            setToastText("Could not find a valid QR Code within this uploaded card image. Attempting fallback...");
-            
-            // Auto find matching student or pick student-1
-            setTimeout(() => {
-              handleSuccessfulQRDecode("sim-1");
-            }, 1000);
+            setToastText("Could not find any readable QR Code within this uploaded card image.");
+            playGateBeep(220, 0.45);
           }
         }
       };
@@ -478,7 +489,43 @@ export default function SchoolAdminDashboard() {
       const scanDirection = studentScanDirection || 'in';
       const updatedStatus = scanDirection === 'in' ? 'present' : 'absent';
       
+      // 1. Update students status in local state
       setStudents(prev => prev.map(item => item.id === studentMatch.id ? { ...item, status: updatedStatus } : item));
+
+      // 2. Prepend log to activity feed / dashboard
+      const transType = scanDirection === 'in' ? 'arrival' : 'departure';
+      const recordId = 'scan-rec-' + Date.now();
+      const newRecord = {
+        id: recordId,
+        student_id: studentMatch.id,
+        type: transType,
+        status: transType === 'arrival' ? 'on_time' : 'normal',
+        timestamp: new Date().toISOString(),
+        student: {
+          first_name: studentMatch.first_name,
+          last_name: studentMatch.last_name,
+          photo_url: studentMatch.photo_url,
+          student_id_number: studentMatch.id
+        }
+      };
+      setRecentActivity(prev => [newRecord, ...prev]);
+
+      // 3. Update the corresponding dashboard Stats counts dynamically
+      setStats(prev => {
+        const updated = { ...prev };
+        if (transType === 'arrival') {
+          updated.present_today = (updated.present_today || 0) + 1;
+          if (updated.absent_today && updated.absent_today > 0) {
+            updated.absent_today = updated.absent_today - 1;
+          }
+        } else {
+          updated.absent_today = (updated.absent_today || 0) + 1;
+          if (updated.present_today && updated.present_today > 0) {
+            updated.present_today = updated.present_today - 1;
+          }
+        }
+        return updated;
+      });
 
       const logMsg = `Gate Scan Verified: Scholar ${studentMatch.first_name} ${studentMatch.last_name}`;
       const newLog = {
@@ -520,32 +567,46 @@ export default function SchoolAdminDashboard() {
         timestamp: newLog.timestamp
       });
       
+      const transType = scanDirection === 'in' ? 'arrival' : 'departure';
+      const recordId = 'scan-rec-' + Date.now();
+      const newRecord: any = {
+        id: recordId,
+        staff_id: staffMatch.id,
+        type: transType,
+        status: 'normal',
+        timestamp: new Date().toISOString(),
+        staff: {
+          name: staffMatch.name,
+          role: staffMatch.role,
+          id: staffMatch.id,
+          photo_url: staffMatch.photo_url || null
+        }
+      };
+      setRecentActivity((prev: any) => [newRecord, ...prev]);
+      
       setToastText(`Gate access cleared! Hello ${staffMatch.name}`);
     } else {
-      // Fuzzy default 
-      const fallbackStudent = students[0] || simStudentOptions[0];
-      const scanDirection = studentScanDirection || 'in';
-      const updatedStatus = scanDirection === 'in' ? 'present' : 'absent';
+      // PLAY WARNING ALERT BUZZER
+      playGateBeep(220, 0.45);
       
-      const logMsg = `Gate Scan Verified: Scholar ${fallbackStudent.first_name} ${fallbackStudent.last_name}`;
+      const logMsg = `Gate Scan Refused: Unrecognized registry ID scanned: "${decodedData}"`;
       const newLog = {
         id: Date.now().toString(),
         action: logMsg,
         user: "Terminal QR Scanner Alpha",
-        target: scanDirection === 'in' ? 'Check In / Arrival' : 'Check Out / Departure',
-        status: 'success',
+        target: 'Access Denied',
+        status: 'error',
         timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19)
       };
       setSystemLogs(prev => [newLog, ...prev]);
 
       setScannedResultPayload({
-        type: 'student',
-        record: fallbackStudent,
-        direction: scanDirection,
+        type: 'error',
+        scannedValue: decodedData,
         timestamp: newLog.timestamp
       });
       
-      setToastText(`Gate access cleared! Welcome ${fallbackStudent.first_name}`);
+      setToastText(`Direct warning: Unregistered ID scanned!`);
     }
 
     // Stop streams
@@ -554,6 +615,7 @@ export default function SchoolAdminDashboard() {
         scannerCameraStream.getTracks().forEach((track: any) => track.stop());
       } catch (err) {}
     }
+    scannerActiveRef.current = false;
     setIsScannerCameraActive(false);
     setScannerCameraStream(null);
   };
@@ -590,14 +652,21 @@ export default function SchoolAdminDashboard() {
 
   // Ready-to-scan students list for simulator
   const [simStudentOptions, setSimStudentOptions] = useState([
-    { id: 'sim-1', first_name: 'Chinedu', last_name: 'Alabi', photo_url: null, grade: 'Grade 3A' },
-    { id: 'sim-2', first_name: 'Funmi', last_name: 'Balogun', photo_url: null, grade: 'Grade 1B' },
-    { id: 'sim-3', first_name: 'Tobi', last_name: 'Adeleke', photo_url: null, grade: 'Grade 5' },
-    { id: 'sim-4', first_name: 'Amara', last_name: 'Okonkwo', photo_url: null, grade: 'Grade 2' },
-    { id: 'sim-5', first_name: 'Zainab', last_name: 'Musa', photo_url: null, grade: 'Grade 4C' },
+    { id: 'std-1', first_name: 'Chinedu', last_name: 'Alabi', photo_url: null, grade: 'Grade 3A' },
+    { id: 'std-2', first_name: 'Funmi', last_name: 'Balogun', photo_url: null, grade: 'Grade 1B' },
+    { id: 'std-3', first_name: 'Tobi', last_name: 'Adeleke', photo_url: null, grade: 'Grade 5' },
+    { id: 'std-4', first_name: 'Amara', last_name: 'Okonkwo', photo_url: null, grade: 'Grade 2' },
+    { id: 'std-5', first_name: 'Zainab', last_name: 'Musa', photo_url: null, grade: 'Grade 4C' },
   ]);
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        jsqrRef.current = require('jsqr').default || require('jsqr');
+      } catch (e) {
+        console.error("jsQR lazy load error:", e);
+      }
+    }
     const session = getSession();
     if (session) {
       setUserName(session.full_name || '');
@@ -3488,37 +3557,105 @@ export default function SchoolAdminDashboard() {
                   )}
                 </div>
 
-                {/* Quick Generation Helper for digital badges */}
-                <div className="bg-slate-50/80 rounded-2xl border border-slate-100 p-5 shadow-inner text-left">
-                  <h4 className="font-extrabold text-xs text-slate-600 tracking-wider uppercase mb-1">Quick Digital Badges & RFIDs</h4>
-                  <p className="text-[10px] text-slate-450 leading-relaxed mb-3">
-                    Generate the unique QR Code or RFID identity for any registered student or staff member below. You can point your device camera to scan it, or click 'Direct Sweep' to trigger instant arrival verification!
-                  </p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {simStudentOptions.slice(0, 3).map((std) => (
-                      <div key={std.id} className="bg-white p-3 rounded-xl border border-slate-100 flex flex-col items-center space-y-2 relative group">
-                        <StudentAvatar photoUrl={std.photo_url} firstName={std.first_name} lastName={std.last_name} size={32} />
-                        <div className="text-center">
-                          <span className="text-[10px] font-bold text-slate-800 block leading-tight capitalize">{std.first_name} {std.last_name}</span>
-                          <span className="text-[8px] font-semibold text-slate-400">{std.grade}</span>
+                {/* Today's scan log - Replaced old helper with dynamic scan feed */}
+                <div className="bg-slate-50/20 rounded-2xl border border-slate-100 p-6 text-left space-y-6">
+                  <div>
+                    <h3 className="font-extrabold text-slate-850 text-base tracking-tight">Today's scan log</h3>
+                    <p className="text-[11px] text-slate-450 leading-normal mt-0.5">Student check-in/out and staff gate scans (Lagos date)</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-extrabold tracking-wider text-slate-400 uppercase block">Date</span>
+                      <input
+                        type="date"
+                        value={scanLogDate}
+                        onChange={(e) => setScanLogDate(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:border-emerald-500 min-h-[40px] font-bold shadow-xs cursor-pointer"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-extrabold tracking-wider text-slate-400 uppercase block">Show</span>
+                      <select
+                        value={scanLogShowFilter}
+                        onChange={(e) => setScanLogShowFilter(e.target.value as any)}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:border-emerald-500 min-h-[40px] font-bold shadow-xs cursor-pointer"
+                      >
+                        <option value="all">Students & staff</option>
+                        <option value="students">Students only</option>
+                        <option value="staff">Staff only</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    {(() => {
+                      const matchedLogs = recentActivity.filter((record: any) => {
+                        const recordDateStr = record.timestamp ? record.timestamp.split('T')[0] : '';
+                        if (recordDateStr !== scanLogDate) return false;
+
+                        if (scanLogShowFilter === 'students' && !record.student_id) return false;
+                        if (scanLogShowFilter === 'staff' && !record.staff_id) return false;
+
+                        return true;
+                      });
+
+                      if (matchedLogs.length === 0) {
+                        return (
+                          <div className="bg-white rounded-2xl border border-slate-100 p-12 text-center shadow-sm flex items-center justify-center min-h-[140px]">
+                            <p className="text-slate-400 text-xs font-semibold">No sign-ins for this date</p>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="bg-white rounded-2xl border border-slate-100 divide-y divide-slate-50 overflow-hidden shadow-sm max-h-[280px] overflow-y-auto">
+                          {matchedLogs.map((record: any) => {
+                            const isStudent = !!record.student_id;
+                            const personName = isStudent 
+                              ? `${record.student?.first_name || 'Student'} ${record.student?.last_name || ''}`
+                              : `${record.staff?.name || 'Staff'}`;
+                            const roleLabel = isStudent
+                              ? `Student • ID: ${record.student_id}`
+                              : `Staff • ${record.staff?.role || 'System member'}`;
+                            const photoUrl = isStudent ? record.student?.photo_url : record.staff?.photo_url;
+                            
+                            const originalTime = record.timestamp;
+                            let formattedTime = 'Recently';
+                            try {
+                              formattedTime = formatTimeLagos(originalTime);
+                            } catch (_) {}
+
+                            return (
+                              <div key={record.id} className="p-3.5 flex items-center justify-between text-xs hover:bg-slate-50/40 transition-colors">
+                                <div className="flex items-center gap-3">
+                                  <StudentAvatar
+                                    photoUrl={photoUrl || null}
+                                    firstName={isStudent ? record.student?.first_name : record.staff?.name}
+                                    lastName={isStudent ? record.student?.last_name : ''}
+                                    size={36}
+                                  />
+                                  <div className="text-left space-y-0.5">
+                                    <h5 className="font-extrabold text-slate-800 capitalize leading-tight">{personName}</h5>
+                                    <p className="text-[10px] text-slate-400 font-semibold">{roleLabel}</p>
+                                  </div>
+                                </div>
+                                <div className="text-right space-y-0.5">
+                                  <span className="font-mono text-slate-500 font-bold block text-[11px]">{formattedTime}</span>
+                                  <span className={`inline-block px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
+                                    record.type === 'arrival' 
+                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                      : 'bg-amber-50 text-amber-700 border border-amber-100'
+                                  }`}>
+                                    {record.type === 'arrival' ? 'Checked In' : 'Checked Out'}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
-                        <img 
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&color=0f172a&data=${encodeURIComponent(std.id)}`} 
-                          alt="Student scan barcode" 
-                          className="w-[50px] h-[50px] border border-slate-100 p-0.5 rounded-md"
-                          referrerPolicy="no-referrer"
-                        />
-                        <button
-                          onClick={() => {
-                            setStudentScanDirection('in');
-                            handleSuccessfulQRDecode(std.id);
-                          }}
-                          className="py-1 px-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[9px] font-black rounded-lg border-none cursor-pointer w-full mt-1.5 transition-colors"
-                        >
-                          Direct Sweep
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -3599,55 +3736,94 @@ export default function SchoolAdminDashboard() {
 
                 {/* VERIFIED CLEARANCE HUD SLIDE OVER (Visible once scannedResultPayload is loaded!) */}
                 {scannedResultPayload && (
-                  <div className="absolute inset-0 bg-[#0f172a] z-50 p-5 flex flex-col justify-between border-t-4 border-emerald-500 animate-in slide-in-from-bottom duration-300">
+                  <div className={`absolute inset-0 bg-[#0f172a] z-50 p-5 flex flex-col justify-between border-t-4 ${scannedResultPayload.type === 'error' ? 'border-rose-500' : 'border-emerald-500'} animate-in slide-in-from-bottom duration-300`}>
                     <div className="space-y-4">
                       <div className="flex justify-between items-center pb-2 border-b border-slate-800">
-                        <div className="flex items-center gap-1.5 text-emerald-400 font-extrabold text-[11px] font-mono tracking-wider">
-                          <CheckCircle2 size={13} />
-                          <span>CLEARANCE APPROVED</span>
-                        </div>
+                        {scannedResultPayload.type === 'error' ? (
+                          <div className="flex items-center gap-1.5 text-rose-400 font-extrabold text-[11px] font-mono tracking-wider">
+                            <XCircle size={13} />
+                            <span>ACCESS PERMISSION DENIED</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-emerald-400 font-extrabold text-[11px] font-mono tracking-wider">
+                            <CheckCircle2 size={13} />
+                            <span>CLEARANCE APPROVED</span>
+                          </div>
+                        )}
                         <span className="text-[9px] font-mono text-slate-400">{scannedResultPayload.timestamp}</span>
                       </div>
 
-                      {/* User Snapshot display */}
-                      <div className="flex items-center gap-4 bg-slate-950 p-3 rounded-xl border border-slate-800">
-                        <StudentAvatar 
-                          photoUrl={scannedResultPayload.record.photo_url} 
-                          firstName={scannedResultPayload.record.first_name || scannedResultPayload.record.name} 
-                          lastName={scannedResultPayload.record.last_name || ''} 
-                          size={46} 
-                        />
-                        <div className="space-y-0.5 text-left">
-                          <h4 className="font-black text-xs text-white capitalize">{scannedResultPayload.record.first_name || scannedResultPayload.record.name} {scannedResultPayload.record.last_name || ''}</h4>
-                          <p className="text-[9px] text-amber-300 font-bold tracking-tight">{scannedResultPayload.record.grade || scannedResultPayload.record.role || 'General Class'}</p>
-                          <p className="text-[9px] text-slate-400">ID: {scannedResultPayload.record.id}</p>
-                        </div>
-                      </div>
+                      {scannedResultPayload.type === 'error' ? (
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-4 bg-rose-950/30 p-3 rounded-xl border border-rose-900/30">
+                            <div className="w-11 h-11 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-455">
+                              <AlertCircle size={22} />
+                            </div>
+                            <div className="space-y-0.5 text-left">
+                              <h4 className="font-black text-xs text-rose-300 capitalize">Registry Mismatch</h4>
+                              <p className="text-[9px] text-slate-400">The scanned ID card / QR is unrecognized</p>
+                            </div>
+                          </div>
 
-                      <div className="space-y-2 text-xs text-slate-300 font-medium">
-                        <div className="flex justify-between border-b border-slate-850 pb-1.5">
-                          <span>Gate Station Ref:</span>
-                          <span className="font-mono text-slate-400">LAG-GATE-A1</span>
+                          <div className="space-y-2 text-xs text-slate-350 font-medium bg-slate-950 p-3.5 rounded-xl border border-slate-850">
+                            <p className="text-[10px] text-slate-400 leading-normal">
+                              This student or staff ID does not exist or has not been registered in your administration database yet.
+                            </p>
+                            <div className="pt-2 border-t border-slate-900 mt-2">
+                              <span className="text-[8px] text-slate-500 block font-mono">SCANNED RAW DATA:</span>
+                              <span className="font-mono text-xs text-rose-300 break-all select-all font-bold block bg-black/45 p-1.5 rounded mt-1 border border-rose-950/50">
+                                {scannedResultPayload.scannedValue}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex justify-between border-b border-slate-850 pb-1.5">
-                          <span>Transit Status:</span>
-                          <span className={`font-bold ${scannedResultPayload.direction === 'in' ? 'text-emerald-400' : 'text-amber-400'}`}>
-                            {scannedResultPayload.direction === 'in' ? 'Checked In (Arrived)' : 'Checked Out (Departed)'}
-                          </span>
-                        </div>
-                        {scannedResultPayload.type === 'student' && (
-                          <p className="text-[10px] text-emerald-300/90 font-bold bg-emerald-950/40 p-2 rounded-lg border border-emerald-900/30 flex items-center gap-1.5">
-                            <span className="animate-pulse">📞</span>
-                            <span>SMS dispatched to Parent ({scannedResultPayload.record.parent || 'doe jane'})</span>
-                          </p>
-                        )}
-                      </div>
+                      ) : (
+                        <>
+                          {/* User Snapshot display */}
+                          <div className="flex items-center gap-4 bg-slate-950 p-3 rounded-xl border border-slate-800">
+                            <StudentAvatar 
+                              photoUrl={scannedResultPayload.record.photo_url} 
+                              firstName={scannedResultPayload.record.first_name || scannedResultPayload.record.name} 
+                              lastName={scannedResultPayload.record.last_name || ''} 
+                              size={46} 
+                            />
+                            <div className="space-y-0.5 text-left">
+                              <h4 className="font-black text-xs text-white capitalize">{scannedResultPayload.record.first_name || scannedResultPayload.record.name} {scannedResultPayload.record.last_name || ''}</h4>
+                              <p className="text-[9px] text-amber-300 font-bold tracking-tight">{scannedResultPayload.record.grade || scannedResultPayload.record.role || 'General Class'}</p>
+                              <p className="text-[9px] text-slate-400">ID: {scannedResultPayload.record.id}</p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2 text-xs text-slate-300 font-medium font-sans">
+                            <div className="flex justify-between border-b border-slate-850 pb-1.5">
+                              <span>Gate Station Ref:</span>
+                              <span className="font-mono text-slate-400">LAG-GATE-A1</span>
+                            </div>
+                            <div className="flex justify-between border-b border-slate-850 pb-1.5">
+                              <span>Transit Status:</span>
+                              <span className={`font-bold ${scannedResultPayload.direction === 'in' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                {scannedResultPayload.direction === 'in' ? 'Checked In (Arrived)' : 'Checked Out (Departed)'}
+                              </span>
+                            </div>
+                            {scannedResultPayload.type === 'student' && (
+                              <p className="text-[10px] text-emerald-300/90 font-bold bg-emerald-950/40 p-2 rounded-lg border border-emerald-900/30 flex items-center gap-1.5">
+                                <span className="animate-pulse">📞</span>
+                                <span>SMS dispatched to Parent ({scannedResultPayload.record.parent || 'doe jane'})</span>
+                              </p>
+                            )}
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     <button
                       type="button"
                       onClick={() => setScannedResultPayload(null)}
-                      className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl cursor-pointer border-none shadow-md mt-4 block"
+                      className={`w-full py-2 text-white font-black text-xs rounded-xl cursor-pointer border-none shadow-md mt-4 block ${
+                        scannedResultPayload.type === 'error' 
+                          ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-950/40' 
+                          : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-950/40'
+                      }`}
                     >
                       Acknowledge & Refresh Terminal
                     </button>
