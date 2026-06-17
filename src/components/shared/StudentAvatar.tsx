@@ -14,7 +14,7 @@ export default function StudentAvatar({ photoUrl, firstName = '', lastName = '',
   const initials = `${firstName[0] || ''}${lastName[0] || ''}`.toUpperCase() || '?';
 
   if (photoUrl && !error) {
-    const src = photoUrl.startsWith('http') 
+    const src = (photoUrl.startsWith('http') || photoUrl.startsWith('data:') || photoUrl.startsWith('blob:'))
       ? photoUrl 
       : `/api/photo?path=${encodeURIComponent(photoUrl)}`;
 
