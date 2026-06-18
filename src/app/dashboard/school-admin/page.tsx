@@ -4109,10 +4109,29 @@ export default function SchoolAdminDashboard() {
         )}
 
         {activeTab === 'settings' && (
-          <div className="space-y-6 animate-in fade-in duration-200 text-left">
+          <div className="space-y-6 animate-in fade-in duration-200 text-left text-slate-800">
             <div>
               <h2 className="text-xl font-black text-slate-800 tracking-tight text-left">COORDINATOR SYSTEM CONFIG</h2>
               <p className="text-xs text-slate-505">Calibrate smart alert systems, RFID debounce delays and gateway security credentials.</p>
+            </div>
+
+            <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-xs max-w-2xl text-left space-y-3">
+              <div className="flex items-center gap-1.5 border-b border-slate-50 pb-2.5">
+                <div className="p-1.5 bg-emerald-55 bg-emerald-50 text-emerald-600 rounded-lg">
+                  <User size={14} />
+                </div>
+                <h3 className="font-extrabold text-slate-800 text-xs tracking-wider uppercase">My Admin Profile Identity</h3>
+              </div>
+              <p className="text-xs text-slate-505 leading-normal">
+                Personalize your official coordinator name, title, contact email, and profile avatar shown to staff, pupils, and parents across the portal.
+              </p>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('myeduride-open-settings'))}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-3xs cursor-pointer border-none transition"
+              >
+                Edit Coordinator Profile
+              </button>
             </div>
 
             <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-xs max-w-2xl text-left space-y-4">

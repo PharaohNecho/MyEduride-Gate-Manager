@@ -19,6 +19,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     setConfigured(isSupabaseConfigured());
+
+    const handleOpenSettings = () => setShowAccount(true);
+    window.addEventListener('myeduride-open-settings', handleOpenSettings);
+    return () => window.removeEventListener('myeduride-open-settings', handleOpenSettings);
   }, []);
 
   return (

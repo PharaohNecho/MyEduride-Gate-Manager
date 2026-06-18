@@ -225,12 +225,22 @@ export async function POST(request: NextRequest) {
           </div>
         `;
 
-        await resend.emails.send({
-          from: 'MyEduRide Gateway <noreply@assetid.site>',
-          to: adminEmail,
-          subject: `School Activated on MyEduRide Gate Network: ${schoolName}`,
-          html: emailHtml,
-        });
+        try {
+          await resend.emails.send({
+            from: 'MyEduRide Gateway <noreply@assetid.site>',
+            to: adminEmail,
+            subject: `School Activated on MyEduRide Gate Network: ${schoolName}`,
+            html: emailHtml,
+          });
+        } catch (domainErr: any) {
+          console.warn('[register-school] Welcome email failed via domain, retrying via onboarding@resend.dev:', domainErr?.message || domainErr);
+          await resend.emails.send({
+            from: 'MyEduRide Gate <onboarding@resend.dev>',
+            to: adminEmail,
+            subject: `School Activated on MyEduRide Gate Network: ${schoolName}`,
+            html: emailHtml,
+          });
+        }
       } catch (err) {
         console.error('[register-school] Welcome email failed:', err);
       }

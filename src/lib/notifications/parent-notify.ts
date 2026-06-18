@@ -101,16 +101,27 @@ export async function notifyParentsOfAttendance(params: {
 
     try {
       if (process.env.RESEND_API_KEY) {
-        await resend.emails.send({
-          from: `${schoolName} via MyEduRide <noreply@assetid.site>`,
-          to: parent.email,
-          subject: title,
-          html: emailHtml,
-        });
-        emailSent = true;
+        try {
+          await resend.emails.send({
+            from: `${schoolName} via MyEduRide <noreply@assetid.site>`,
+            to: parent.email,
+            subject: title,
+            html: emailHtml,
+          });
+          emailSent = true;
+        } catch (domainErr: any) {
+          console.warn('[notify] primary email domain failed, retrying via onboarding@resend.dev:', domainErr?.message || domainErr);
+          await resend.emails.send({
+            from: 'MyEduRide Gate <onboarding@resend.dev>',
+            to: parent.email,
+            subject: title,
+            html: emailHtml,
+          });
+          emailSent = true;
+        }
       }
     } catch (emailErr) {
-      console.error('[notify] email failed:', emailErr);
+      console.error('[notify] both email send and fallback retry failed:', emailErr);
     }
 
     try {

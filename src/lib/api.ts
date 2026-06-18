@@ -9,6 +9,7 @@ export interface SessionData {
   email: string;
   full_name: string;
   photo_url?: string | null;
+  title?: string | null;
   roles: SessionUserRole[];
   primary_school?: {
     id: string;

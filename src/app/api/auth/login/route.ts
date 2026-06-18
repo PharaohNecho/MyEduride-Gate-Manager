@@ -62,6 +62,8 @@ export async function POST(request: NextRequest) {
         full_name: fullName,
         roles: roles,
         primary_school: primarySchool,
+        photo_url: null,
+        title: 'Guardian',
       });
 
       const sessionObj = {
@@ -71,6 +73,8 @@ export async function POST(request: NextRequest) {
         full_name: fullName,
         roles: roles,
         primary_school: null,
+        photo_url: null,
+        title: 'Guardian',
       };
 
       const response = NextResponse.json({
@@ -342,6 +346,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    let userTitle = '';
+    let userPhotoUrl = '';
+    try {
+      const { data: authUser } = await supabase.auth.admin.getUserById(profile.id);
+      if (authUser?.user) {
+        userTitle = authUser.user.user_metadata?.title || '';
+        userPhotoUrl = authUser.user.user_metadata?.photo_url || '';
+      }
+    } catch (e) {
+      console.warn('Could not read user_metadata from auth users:', e);
+    }
+
     await writeAuditLog(supabase, {
       school_id: schoolRole?.school_id || null,
       actor_user_id: profile.id,
@@ -356,6 +372,8 @@ export async function POST(request: NextRequest) {
       full_name: profile.full_name,
       roles: roles || [],
       primary_school: primarySchool,
+      photo_url: userPhotoUrl || (profile as any).photo_url || null,
+      title: userTitle || (profile as any).title || null,
     });
 
     const sessionObj = {
@@ -365,6 +383,8 @@ export async function POST(request: NextRequest) {
       full_name: profile.full_name,
       roles: roles || [],
       primary_school: primarySchool,
+      photo_url: userPhotoUrl || (profile as any).photo_url || null,
+      title: userTitle || (profile as any).title || null,
     };
 
     const response = NextResponse.json({

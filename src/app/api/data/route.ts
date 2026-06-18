@@ -696,13 +696,24 @@ export async function POST(request: NextRequest) {
               </div>
             `;
 
-            await resend.emails.send({
-              from: `${schoolName} via MyEduRide <noreply@assetid.site>`,
-              to: Array.from(emailsToNotify),
-              subject: `Pickup Authorization registered for ${studentName}`,
-              html: emailHtml,
-            });
-            emailSent = true;
+            try {
+              await resend.emails.send({
+                from: `${schoolName} via MyEduRide <noreply@assetid.site>`,
+                to: Array.from(emailsToNotify),
+                subject: `Pickup Authorization registered for ${studentName}`,
+                html: emailHtml,
+              });
+              emailSent = true;
+            } catch (domainErr: any) {
+              console.warn('[create_dismissal_request] Primary email Domain failed, retrying via onboarding@resend.dev:', domainErr?.message || domainErr);
+              await resend.emails.send({
+                from: 'MyEduRide Gate <onboarding@resend.dev>',
+                to: Array.from(emailsToNotify),
+                subject: `Pickup Authorization registered for ${studentName}`,
+                html: emailHtml,
+              });
+              emailSent = true;
+            }
           } catch (emailErr) {
             console.error('[create_dismissal_request] Resend Email error:', emailErr);
           }
@@ -1019,13 +1030,24 @@ export async function POST(request: NextRequest) {
                 </div>
               `;
 
-              await resend.emails.send({
-                from: 'MyEduRide Gateways <noreply@assetid.site>',
-                to: staffEmail,
-                subject: `Gateway Transit Receipt: [${scanType.toUpperCase()}] ${staffName}`,
-                html: emailHtml,
-              });
-              staffEmailSent = true;
+              try {
+                await resend.emails.send({
+                  from: 'MyEduRide Gateways <noreply@assetid.site>',
+                  to: staffEmail,
+                  subject: `Gateway Transit Receipt: [${scanType.toUpperCase()}] ${staffName}`,
+                  html: emailHtml,
+                });
+                staffEmailSent = true;
+              } catch (domainErr: any) {
+                console.warn('[record_attendance_scan] Staff receipt email failed via domain, retrying via onboarding@resend.dev:', domainErr?.message || domainErr);
+                await resend.emails.send({
+                  from: 'MyEduRide Gate <onboarding@resend.dev>',
+                  to: staffEmail,
+                  subject: `Gateway Transit Receipt: [${scanType.toUpperCase()}] ${staffName}`,
+                  html: emailHtml,
+                });
+                staffEmailSent = true;
+              }
             } catch (err) {
               console.error('[record_attendance_scan] Failed to send staff email alert:', err);
             }

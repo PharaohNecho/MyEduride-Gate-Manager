@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSession, fetchData, logout } from '@/lib/api';
 import { isSupabaseConfigured, createClient } from '@/lib/supabase/client';
+import { StudentAvatar } from '@/components/shared/StudentAvatar';
 import { todayInLagos, formatTimeLagos } from '@/lib/timezone';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -79,6 +80,9 @@ export default function ParentDashboard() {
 
   // Profile management states
   const [session, setSession] = useState<any>(null);
+  const [parentTitle, setParentTitle] = useState('Guardian');
+  const [parentPhotoUrl, setParentPhotoUrl] = useState<string | null>(null);
+  const [photoBase64, setPhotoBase64] = useState<string | null>(null);
   const [pwdNew, setPwdNew] = useState('');
   const [pwdConfirm, setPwdConfirm] = useState('');
   const [pwdLoading, setPwdLoading] = useState(false);
@@ -102,6 +106,8 @@ export default function ParentDashboard() {
         body: JSON.stringify({
           user_id: session?.user_id,
           full_name: parentName,
+          title: parentTitle,
+          photo_base64: photoBase64,
           email: session?.email,
           username: session?.username
         }),
@@ -109,9 +115,16 @@ export default function ParentDashboard() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Failed to update identity parameters.');
       setProfileSuccess('Profile parameters synced successfully.');
-      const updated = { ...session, full_name: parentName };
+      const updated = { 
+        ...session, 
+        full_name: parentName, 
+        title: parentTitle, 
+        photo_url: data.profile?.photo_url || session.photoUrl || session.photo_url 
+      };
       localStorage.setItem('myeduride_session', JSON.stringify(updated));
       setSession(updated);
+      setParentPhotoUrl(updated.photo_url);
+      setPhotoBase64(null); // Clear after successfully uploaded
     } catch (err: any) {
       setProfileError(err.message || 'Error occurred.');
     }
@@ -268,6 +281,8 @@ export default function ParentDashboard() {
     }
     setSession(session);
     setParentName(session.full_name || 'doe');
+    setParentTitle(session.title || 'Guardian');
+    setParentPhotoUrl(session.photo_url || null);
 
     const connected = isSupabaseConfigured();
     setIsDbConnected(connected);
@@ -1607,6 +1622,52 @@ export default function ParentDashboard() {
                           {profileSuccess && <div className="p-3 text-xs bg-emerald-50 text-emerald-800 rounded-xl font-bold font-sans">{profileSuccess}</div>}
                           {profileError && <div className="p-3 text-xs bg-red-50 text-red-700 rounded-xl font-bold font-sans">{profileError}</div>}
                           
+                          {/* Photo Avatar Live Upload */}
+                          <div className="flex flex-col sm:flex-row items-center gap-4 border-b border-slate-50 pb-4 mb-2">
+                            <div className="relative shrink-0">
+                              <StudentAvatar photoUrl={photoBase64 || parentPhotoUrl} firstName={parentName} size={70} />
+                              {photoBase64 && (
+                                <span className="absolute -bottom-1 -right-1 bg-amber-500 text-white font-extrabold text-[8px] uppercase px-1.5 py-0.5 rounded-full border border-white">
+                                  Pending
+                                </span>
+                              )}
+                            </div>
+                            <div className="space-y-1 sm:text-left text-center">
+                              <h4 className="text-xs font-black text-slate-800">Guardian Profile Image</h4>
+                              <p className="text-[10px] text-slate-400">Upload a portrait. Verified by officers during real student pickup.</p>
+                              
+                              <div className="flex items-center gap-2 pt-1">
+                                <label className="cursor-pointer bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition flex items-center gap-1">
+                                  <span>Choose File</span>
+                                  <input 
+                                    type="file" 
+                                    accept="image/png, image/jpeg, image/jpg" 
+                                    className="hidden" 
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) {
+                                        const reader = new FileReader();
+                                        reader.onloadend = () => {
+                                          setPhotoBase64(reader.result as string);
+                                        };
+                                        reader.readAsDataURL(file);
+                                      }
+                                    }}
+                                  />
+                                </label>
+                                {photoBase64 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setPhotoBase64(null)}
+                                    className="text-red-500 hover:text-red-750 text-[10px] font-bold"
+                                  >
+                                    Reset
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="space-y-1">
                               <label className="text-[10px] font-bold text-slate-400 uppercase">Guardian Full Name</label>
@@ -1619,6 +1680,23 @@ export default function ParentDashboard() {
                             </div>
                             
                             <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase">Guardian Relationship / Title</label>
+                              <select
+                                value={parentTitle}
+                                onChange={(e) => setParentTitle(e.target.value)}
+                                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-850 focus:outline-none focus:border-emerald-500/30 min-h-[44px]"
+                              >
+                                <option value="Mother">Mother</option>
+                                <option value="Father">Father</option>
+                                <option value="Guardian">Guardian</option>
+                                <option value="Driver">Authorized Driver</option>
+                                <option value="Uncle">Uncle</option>
+                                <option value="Aunt">Aunt</option>
+                                <option value="Other">Other / Extended Family</option>
+                              </select>
+                            </div>
+
+                            <div className="space-y-1">
                               <label className="text-[10px] font-bold text-slate-400 uppercase">Portal Username</label>
                               <input
                                 type="text"
@@ -1628,13 +1706,13 @@ export default function ParentDashboard() {
                               />
                             </div>
 
-                            <div className="space-y-1 sm:col-span-2">
+                            <div className="space-y-1">
                               <label className="text-[10px] font-bold text-slate-400 uppercase">Email Address</label>
                               <input
                                 type="email"
                                 readOnly
                                 value={session?.email || ''}
-                                className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-500 focus:outline-none min-h-[44px] cursor-not-allowed"
+                                className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-500 focus:outline-none min-h-[44px] cursor-not-allowed font-sans"
                               />
                             </div>
                           </div>
