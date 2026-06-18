@@ -42,7 +42,8 @@ import {
   HelpCircle,
   Smartphone,
   School,
-  Download
+  Download,
+  Menu
 } from 'lucide-react';
 import { getSession, logout, updateSession } from '@/lib/api';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
@@ -306,6 +307,7 @@ export default function SuperAdminDashboard() {
   // Drag-and-Drop visual layout state
   const [isDragMode, setIsDragMode] = useState(false);
   const [isTemplateEditorOpen, setIsTemplateEditorOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [editorActiveTab, setEditorActiveTab] = useState<'front' | 'back' | 'sizes'>('front');
   
   const [positions, setPositions] = useState({
@@ -348,32 +350,60 @@ export default function SuperAdminDashboard() {
       if (savedSizes) {
         setPlaceholderSizes(JSON.parse(savedSizes));
       }
+
+      const primaryColor = localStorage.getItem('myeduride_card_primary_color');
+      if (primaryColor) setCardPrimaryColor(primaryColor);
+
+      const secondaryColor = localStorage.getItem('myeduride_card_secondary_color');
+      if (secondaryColor) setCardSecondaryColor(secondaryColor);
+
+      const bgColor = localStorage.getItem('myeduride_card_bg_color');
+      if (bgColor) setCardBgColor(bgColor);
+
+      const fontFamily = localStorage.getItem('myeduride_card_font_family');
+      if (fontFamily) setCardFontFamily(fontFamily as any);
+
+      const logoType = localStorage.getItem('myeduride_card_logo_type');
+      if (logoType) setCardLogoType(logoType as any);
+
+      const layoutSide = localStorage.getItem('myeduride_card_layout_side');
+      if (layoutSide) setCardLayoutSide(layoutSide as any);
+
+      const titleText = localStorage.getItem('myeduride_custom_title_text');
+      if (titleText) setCustomTitleText(titleText);
+
+      const disclaimerText = localStorage.getItem('myeduride_card_disclaimer_text');
+      if (disclaimerText) setCardDisclaimerText(disclaimerText);
+
+      const returnInstructions = localStorage.getItem('myeduride_card_return_instructions');
+      if (returnInstructions) setCardReturnInstructions(returnInstructions);
+
+      const showPhoto = localStorage.getItem('myeduride_card_show_photo');
+      if (showPhoto) setCardShowPhoto(showPhoto === 'true');
+
+      const showQR = localStorage.getItem('myeduride_card_show_qr');
+      if (showQR) setCardShowQR(showQR === 'true');
+
+      const showBarcode = localStorage.getItem('myeduride_card_show_barcode');
+      if (showBarcode) setCardShowBarcode(showBarcode === 'true');
+
+      const showLogo = localStorage.getItem('myeduride_card_show_logo');
+      if (showLogo) setCardShowLogo(showLogo === 'true');
+
+      const showAddress = localStorage.getItem('myeduride_card_show_address');
+      if (showAddress) setCardShowAddress(showAddress === 'true');
+
+      const showSignature = localStorage.getItem('myeduride_card_show_signature');
+      if (showSignature) setCardShowSignature(showSignature === 'true');
+
+      const showDisclaimer = localStorage.getItem('myeduride_card_show_disclaimer');
+      if (showDisclaimer) setCardShowDisclaimer(showDisclaimer === 'true');
     } catch (e) {
       console.error('Error loading template settings from localStorage:', e);
     } finally {
       templateLoadedRef.current = true;
     }
   }, []);
-
-  // Autosave positions
-  useEffect(() => {
-    if (!templateLoadedRef.current) return;
-    try {
-      localStorage.setItem('myeduride_id_positions', JSON.stringify(positions));
-    } catch (e) {
-      console.error('Error auto-saving positions:', e);
-    }
-  }, [positions]);
-
-  // Autosave sizes
-  useEffect(() => {
-    if (!templateLoadedRef.current) return;
-    try {
-      localStorage.setItem('myeduride_id_sizes', JSON.stringify(placeholderSizes));
-    } catch (e) {
-      console.error('Error auto-saving placeholder sizes:', e);
-    }
-  }, [placeholderSizes]);
 
   const [activeDrag, setActiveDrag] = useState<{
     elementId: string;
@@ -1183,6 +1213,16 @@ export default function SuperAdminDashboard() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Mobile Modules Drawer Trigger */}
+            <button
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="md:hidden flex items-center gap-1.5 px-3 py-2 bg-[#1e40af] hover:bg-[#1e3a8a] text-white text-[11px] font-extrabold tracking-wide rounded-xl shadow-xs border-none cursor-pointer hover:scale-105 active:scale-95 transition-all select-none"
+              title="Toggle all modules/tabs"
+            >
+              <Menu size={14} className="text-amber-400 shrink-0" />
+              <span>Modules</span>
+            </button>
+
             {/* Key switcher icon */}
             <button
               onClick={() => {
@@ -4290,7 +4330,26 @@ export default function SuperAdminDashboard() {
                       try {
                         localStorage.setItem('myeduride_id_positions', JSON.stringify(positions));
                         localStorage.setItem('myeduride_id_sizes', JSON.stringify(placeholderSizes));
-                        showToast('ID Template Custom Layout and frame sizes successfully saved onto system!', 'success');
+                        
+                        localStorage.setItem('myeduride_card_primary_color', cardPrimaryColor);
+                        localStorage.setItem('myeduride_card_secondary_color', cardSecondaryColor);
+                        localStorage.setItem('myeduride_card_bg_color', cardBgColor);
+                        localStorage.setItem('myeduride_card_font_family', cardFontFamily);
+                        localStorage.setItem('myeduride_card_logo_type', cardLogoType);
+                        localStorage.setItem('myeduride_card_layout_side', cardLayoutSide);
+                        localStorage.setItem('myeduride_custom_title_text', customTitleText);
+                        localStorage.setItem('myeduride_card_disclaimer_text', cardDisclaimerText);
+                        localStorage.setItem('myeduride_card_return_instructions', cardReturnInstructions);
+                        
+                        localStorage.setItem('myeduride_card_show_photo', String(cardShowPhoto));
+                        localStorage.setItem('myeduride_card_show_qr', String(cardShowQR));
+                        localStorage.setItem('myeduride_card_show_barcode', String(cardShowBarcode));
+                        localStorage.setItem('myeduride_card_show_logo', String(cardShowLogo));
+                        localStorage.setItem('myeduride_card_show_address', String(cardShowAddress));
+                        localStorage.setItem('myeduride_card_show_signature', String(cardShowSignature));
+                        localStorage.setItem('myeduride_card_show_disclaimer', String(cardShowDisclaimer));
+
+                        showToast('ID Template Layout, Colors, Texts, and Visibilities successfully saved!', 'success');
                       } catch (e) {
                         showToast('Error saving template to disk.', 'error');
                       }
@@ -4408,6 +4467,107 @@ export default function SuperAdminDashboard() {
 
         </div>
       </div>
+
+      {/* Mobile Modules Drawer Menu Overlay */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <div className="fixed inset-0 z-55 flex md:hidden">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="absolute inset-0 bg-[#020617]/60 backdrop-blur-sm"
+              id="mobile-drawer-backdrop"
+            />
+            
+            {/* Drawer Sheet */}
+            <motion.div
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="relative w-72 max-w-[85vw] h-full bg-[#0f172a] border-r border-slate-800 text-slate-100 flex flex-col justify-between py-6 shadow-2xl z-55"
+              id="mobile-drawer-sheet"
+            >
+              <div>
+                <div className="px-6 pb-5 flex items-center justify-between border-b border-slate-800/80">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-[#fbbf24] flex items-center justify-center text-slate-950 font-black">
+                      <Shield size={14} />
+                    </div>
+                    <div className="text-left">
+                      <h4 className="text-[11px] font-black text-white uppercase tracking-wider leading-none">MYEDURIDE</h4>
+                      <p className="text-[9px] text-[#fbbf24] font-bold uppercase mt-1 leading-none">SUPER PANEL</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="p-1 px-2.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg border-none text-[10px] uppercase font-bold cursor-pointer"
+                    id="close-drawer-button"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <div className="p-4 uppercase text-[9px] font-bold text-slate-400 tracking-wider text-left">
+                  Menu & Tab Modules
+                </div>
+
+                <nav className="px-3 space-y-1">
+                  {[
+                    { id: 'dashboard', label: 'Overview Dashboard', icon: LayoutDashboard },
+                    { id: 'schools', label: 'Schools Directory', icon: School },
+                    { id: 'passwords', label: 'Auth Credentials Keys', icon: KeyRound },
+                    { id: 'id-cards', label: 'ID Cards Designer', icon: CreditCard },
+                    { id: 'reports', label: 'Platform Diagnostics', icon: ClipboardList },
+                    { id: 'account', label: 'My Operator Account', icon: User },
+                  ].map((tab) => {
+                    const TabIcon = tab.icon;
+                    const isActive = activeTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => {
+                          setActiveTab(tab.id as any);
+                          setIsMobileMenuOpen(false);
+                          setSearchQuery('');
+                          showToast(`Switched to ${tab.label}`, 'success');
+                        }}
+                        className={`w-full p-3.5 rounded-xl flex items-center gap-3.5 font-bold text-xs border-none bg-transparent cursor-pointer transition-all text-left ${
+                          isActive 
+                            ? 'bg-[#1e40af] text-white shadow-md border-l-4 border-[#fbbf24]' 
+                            : 'text-slate-300 hover:bg-slate-800/10'
+                        }`}
+                        id={`mobile-menu-tab-${tab.id}`}
+                      >
+                        <TabIcon size={15} className={isActive ? 'text-[#fbbf24]' : 'text-slate-400'} />
+                        <span>{tab.label}</span>
+                      </button>
+                    );
+                  })}
+                </nav>
+              </div>
+
+              {/* Bottom logout */}
+              <div className="px-4 border-t border-slate-800/80 pt-5">
+                <button
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    logout();
+                  }}
+                  className="w-full py-2.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 hover:text-rose-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1 border border-rose-500/10 cursor-pointer"
+                  id="mobile-drawer-logout-button"
+                >
+                  <LogOut size={13} />
+                  <span>Exit Supervisor Terminal</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

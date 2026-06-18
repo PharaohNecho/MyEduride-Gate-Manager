@@ -11,7 +11,7 @@ import {
   Edit, ShieldAlert, Layers, KeyRound, User, Trash2, Camera, RefreshCw, ArrowUpCircle, Video, Key, Clock, Landmark, Wifi,
   List, UserPlus, AlertCircle, XCircle
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import Link from 'next/link';
 import StudentAvatar from '@/components/shared/StudentAvatar';
 import PickupRequestsPanel from '@/components/admin/PickupRequestsPanel';
@@ -495,10 +495,21 @@ export default function SchoolAdminDashboard() {
       }
     }
 
-    // Look up this data in students and parents
-    const studentMatch = students.find(s => s.id === lookupId || s.rfid === lookupId) || 
-                         simStudentOptions.find(s => s.id === lookupId);
-    const staffMatch = staffList.find(s => s.id === lookupId || s.username === lookupId);
+    // Look up this data in students and parents (case-insensitive and trimmed)
+    const cleanLookupId = lookupId.trim().toLowerCase();
+
+    const studentMatch = students.find(s => 
+      s.id.toLowerCase() === cleanLookupId || 
+      (s.rfid && s.rfid.trim().toLowerCase() === cleanLookupId)
+    ) || simStudentOptions.find(s => 
+      s.id.toLowerCase() === cleanLookupId
+    );
+
+    const staffMatch = staffList.find(s => 
+      s.id.toLowerCase() === cleanLookupId || 
+      (s.username && s.username.trim().toLowerCase() === cleanLookupId) ||
+      (s.email && s.email.trim().toLowerCase() === cleanLookupId)
+    );
 
     if (studentMatch) {
       const scanDirection = studentScanDirection || 'in';
@@ -561,6 +572,29 @@ export default function SchoolAdminDashboard() {
       });
       
       setToastText(`Gate access cleared! Welcome ${studentMatch.first_name}`);
+
+      // Sync scan to backend DB & dispatch emails
+      fetch('/api/data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'record_attendance_scan',
+          params: {
+            student_id: studentMatch.id,
+            type: scanDirection === 'in' ? 'arrival' : 'departure',
+            status: 'normal',
+            timestamp: new Date().toISOString()
+          }
+        })
+      })
+        .then(res => res.json())
+        .then((data) => {
+          console.log('[Real Camera Scan Synced student]:', data);
+        })
+        .catch((err) => {
+          console.error('[Real Camera Scan Sync error student]:', err);
+        });
+
     } else if (staffMatch) {
       const scanDirection = staffScanDirection || 'in';
       
@@ -600,6 +634,28 @@ export default function SchoolAdminDashboard() {
       setRecentActivity((prev: any) => [newRecord, ...prev]);
       
       setToastText(`Gate access cleared! Hello ${staffMatch.name}`);
+
+      // Sync scan to backend DB & dispatch emails
+      fetch('/api/data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'record_attendance_scan',
+          params: {
+            staff_id: staffMatch.id,
+            type: scanDirection === 'in' ? 'arrival' : 'departure',
+            status: 'normal',
+            timestamp: new Date().toISOString()
+          }
+        })
+      })
+        .then(res => res.json())
+        .then((data) => {
+          console.log('[Real Camera Scan Synced staff]:', data);
+        })
+        .catch((err) => {
+          console.error('[Real Camera Scan Sync error staff]:', err);
+        });
     } else {
       // PLAY WARNING ALERT BUZZER
       playGateBeep(220, 0.45);
@@ -886,6 +942,28 @@ export default function SchoolAdminDashboard() {
       }
       return updated;
     });
+
+    // Cloud DB Persistency and Real Email dispatch trigger
+    fetch('/api/data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'record_attendance_scan',
+        params: {
+          student_id: selectedSimStudent.id,
+          type: simDirection === 'arrival' ? 'arrival' : 'departure',
+          status: simStatus,
+          timestamp: new Date().toISOString()
+        }
+      })
+    })
+      .then(res => res.json())
+      .then((data) => {
+        console.log('[Central Scan Synced to PostgreSQL]:', data);
+      })
+      .catch((err) => {
+        console.error('[Central Scan Sync failed]:', err);
+      });
 
     // Trigger Success feedback
     setScanStep(3);
@@ -1533,10 +1611,18 @@ export default function SchoolAdminDashboard() {
       {/* Main Content Pane */}
       <div className="flex-1 min-w-0 flex flex-col relative pb-24 md:pb-6 md:h-full md:overflow-y-auto">
         
-        {/* Header Row */}
+         {/* Header Row */}
         <header className="bg-white/80 backdrop-blur-md sticky top-0 border-b border-slate-100 z-40 px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {/* Mobile menu trigger is not needed with bottom navigation */}
+            {/* Mobile menu trigger */}
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="md:hidden flex items-center justify-center p-2.5 bg-[#1e40af] hover:bg-[#1e3a8a] text-white rounded-xl shadow-xs border-none cursor-pointer hover:scale-105 active:scale-95 transition-all select-none"
+              title="Toggle all modules/tabs"
+            >
+              <Menu size={16} className="text-amber-400 shrink-0" />
+            </button>
 
             <div>
               <h1 className="text-sm font-black text-[#1a2238] uppercase tracking-tight">{schoolName || 'Prototype Academy'}</h1>
@@ -5362,6 +5448,118 @@ export default function SchoolAdminDashboard() {
           <span>{toastText}</span>
         </div>
       )}
+
+      {/* Mobile Modules Drawer Menu Overlay */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <div className="fixed inset-0 z-[100] flex md:hidden">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="absolute inset-0 bg-[#020617]/60 backdrop-blur-sm z-50"
+              id="mobile-drawer-backdrop-school"
+            />
+            
+            {/* Drawer Sheet */}
+            <motion.div
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="relative w-80 max-w-[85vw] h-full bg-[#0a1424] border-r border-slate-800 text-slate-100 flex flex-col justify-between py-6 shadow-2xl z-55 overflow-y-auto"
+              id="mobile-drawer-sheet-school"
+            >
+              <div>
+                <div className="px-6 pb-5 flex items-center justify-between border-b border-slate-800/80">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-[#fbbf24] flex items-center justify-center text-slate-950 font-black">
+                      <School size={14} />
+                    </div>
+                    <div className="text-left">
+                      <h4 className="text-[11px] font-black text-white uppercase tracking-wider leading-none truncate max-w-[120px]">{schoolName || 'MYEDURIDE'}</h4>
+                      <p className="text-[9px] text-amber-400 font-bold uppercase mt-1 leading-none">SCHOOL ADMIN</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="p-1 px-2.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg border-none text-[10px] uppercase font-bold cursor-pointer"
+                    id="close-drawer-button-school"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <div className="p-4 uppercase text-[9px] font-bold text-slate-500 tracking-wider text-left">
+                  Menu & Tab Modules
+                </div>
+
+                <nav className="px-3 space-y-1 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                  {[
+                    { id: 'dashboard', label: 'Dashboard Overview', icon: LayoutDashboard },
+                    { id: 'id-cards', label: 'ID Cards Designer', icon: CreditCard },
+                    { id: 'reports-attendance', label: 'Students Attendance Matrix', icon: List },
+                    { id: 'reports-gate', label: 'Gate Access Passages', icon: List },
+                    { id: 'students-list', label: 'Students Directory', icon: List },
+                    { id: 'students-add', label: 'Register Student', icon: UserPlus },
+                    { id: 'staff-list', label: 'Staff/Instructors Directory', icon: List },
+                    { id: 'staff-add', label: 'Register Staff', icon: UserPlus },
+                    { id: 'parents-list', label: 'Parent Guardians', icon: List },
+                    { id: 'classes', label: 'Campus Classes', icon: Layers },
+                    { id: 'pickup-list', label: 'Pickup Requests Logs', icon: ArrowLeftRight },
+                    { id: 'notifications', label: 'Alert Notification Dispatch', icon: Bell },
+                    { id: 'attendance', label: 'Manual Roll Call Matrix', icon: CheckCircle2 },
+                    { id: 'school-calendar', label: 'School Events Calendar', icon: Calendar },
+                    { id: 'audit-log', label: 'Security Audit logs', icon: ShieldAlert },
+                    { id: 'settings', label: 'Terminal Node Settings', icon: Settings },
+                    { id: 'account', label: 'My Supervisor Profile', icon: User },
+                  ].map((tab) => {
+                    const TabIcon = tab.icon;
+                    const isActive = activeTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => {
+                          setActiveTab(tab.id as any);
+                          setIsMobileMenuOpen(false);
+                          setToastText(`Opened ${tab.label}`);
+                          setTimeout(() => setToastText(''), 3000);
+                        }}
+                        className={`w-full p-3.5 rounded-xl flex items-center gap-3.5 font-bold text-xs border-none bg-transparent cursor-pointer transition-all text-left ${
+                          isActive 
+                            ? 'bg-[#1e40af] text-white shadow-md border-l-4 border-[#fbbf24]' 
+                            : 'text-slate-300 hover:bg-slate-850/50 hover:bg-[#1e3a8a]/20'
+                        }`}
+                        id={`mobile-menu-tab-school-${tab.id}`}
+                      >
+                        <TabIcon size={15} className={isActive ? 'text-[#fbbf24]' : 'text-slate-500'} />
+                        <span className="truncate">{tab.label}</span>
+                      </button>
+                    );
+                  })}
+                </nav>
+              </div>
+
+              {/* Bottom logout */}
+              <div className="px-4 border-t border-slate-800/80 pt-4">
+                <button
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    logout();
+                  }}
+                  className="w-full py-2.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 hover:text-rose-300 font-bold text-xs rounded-xl flex items-center justify-center gap-1 border border-rose-500/10 cursor-pointer"
+                  id="mobile-drawer-school-logout-button"
+                >
+                  <LogOut size={13} />
+                  <span>Exit School Terminal</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       </div>
 

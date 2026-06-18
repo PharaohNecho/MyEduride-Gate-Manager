@@ -618,11 +618,38 @@ export async function POST(request: NextRequest) {
         const schoolName = schoolObj?.name || 'MyEduRide Academy';
         const schoolColor = schoolObj?.primary_color || '#10b981';
 
-        // Trigger email notification to parent
-        const parentEmail = session.email;
+        // Get all unique emails to notify (including the user session and any linked parent profiles)
+        const emailsToNotify = new Set<string>();
+        if (session.email) {
+          emailsToNotify.add(session.email);
+        }
+
+        try {
+          const { data: pLinks } = await supabase
+            .from('student_parents')
+            .select('parent_user_id')
+            .eq('student_id', student_id);
+          
+          if (pLinks && pLinks.length > 0) {
+            const pIds = pLinks.map((l: any) => l.parent_user_id);
+            const { data: parentProfiles } = await supabase
+              .from('user_profiles')
+              .select('email')
+              .in('id', pIds);
+            
+            if (parentProfiles) {
+              parentProfiles.forEach((p: any) => {
+                if (p.email) emailsToNotify.add(p.email);
+              });
+            }
+          }
+        } catch (dbErr) {
+          console.error('[create_dismissal_request] Failed finding parent emails:', dbErr);
+        }
+
         let emailSent = false;
 
-        if (parentEmail && process.env.RESEND_API_KEY) {
+        if (emailsToNotify.size > 0 && process.env.RESEND_API_KEY) {
           try {
             const resend = new Resend(process.env.RESEND_API_KEY);
             const dateStr = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -671,7 +698,7 @@ export async function POST(request: NextRequest) {
 
             await resend.emails.send({
               from: `${schoolName} via MyEduRide <noreply@assetid.site>`,
-              to: parentEmail,
+              to: Array.from(emailsToNotify),
               subject: `Pickup Authorization registered for ${studentName}`,
               html: emailHtml,
             });
@@ -843,6 +870,173 @@ export async function POST(request: NextRequest) {
           .eq('id', notificationId)
           .eq('user_id', session.user_id);
         return NextResponse.json({ success: true });
+      }
+
+      case 'record_attendance_scan': {
+        const { student_id, staff_id, type, status, timestamp } = params;
+
+        if (!student_id && !staff_id) {
+          return NextResponse.json({ error: 'student_id or staff_id is required' }, { status: 400 });
+        }
+
+        const scanTime = timestamp || new Date().toISOString();
+        const scanType = type || 'arrival'; // 'arrival' | 'departure'
+        const scanStatus = status || 'on_time'; // 'on_time' | 'late' | 'normal'
+
+        if (student_id) {
+          // 1. Find school_id for this student
+          const { data: student, error: studentErr } = await supabase
+            .from('students')
+            .select('school_id, first_name, last_name')
+            .eq('id', student_id)
+            .maybeSingle();
+
+          if (studentErr || !student) {
+            return NextResponse.json({ error: 'Student profile not registered in database' }, { status: 404 });
+          }
+
+          const schoolId = student.school_id || 'demo-school-id';
+
+          // 2. Insert attendance record
+          const { data: insertedRecord, error: insertErr } = await supabase
+            .from('attendance_records')
+            .insert({
+              student_id,
+              school_id: schoolId,
+              type: scanType,
+              status: scanStatus,
+              timestamp: scanTime
+            })
+            .select()
+            .maybeSingle();
+
+          if (insertErr) {
+            console.error('[record_attendance_scan] Database insertion error:', insertErr);
+            return NextResponse.json({ error: insertErr.message }, { status: 500 });
+          }
+
+          // 3. Trigger email & push alerts through Parent Notify
+          let parentNotifiedCount = 0;
+          try {
+            const { notifyParentsOfAttendance } = await import('@/lib/notifications/parent-notify');
+            const notifyRes = await notifyParentsOfAttendance({
+              student_id,
+              attendance_record_id: insertedRecord.id,
+              type: scanType as 'arrival' | 'departure'
+            });
+            parentNotifiedCount = notifyRes.notified;
+          } catch (notifErr) {
+            console.error('[record_attendance_scan] Parent notify trigger exception:', notifErr);
+          }
+
+          return NextResponse.json({ 
+            success: true, 
+            record: insertedRecord, 
+            notified_parents_count: parentNotifiedCount 
+          });
+
+        } else {
+          // Staff Check-in or Check-out
+          // 1. Find staff name or details
+          const { data: staffProfile, error: profileErr } = await supabase
+            .from('user_profiles')
+            .select('full_name, email')
+            .eq('id', staff_id)
+            .maybeSingle();
+
+          const { data: staffRole } = await supabase
+            .from('user_school_roles')
+            .select('school_id, role')
+            .eq('user_id', staff_id)
+            .maybeSingle();
+
+          const schoolId = staffRole?.school_id || 'demo-school-id';
+          const staffName = staffProfile?.full_name || 'Staff User';
+          const staffEmail = staffProfile?.email;
+
+          // 2. Create attendance entry
+          const { data: insertedRecord, error: insertErr } = await supabase
+            .from('attendance_records')
+            .insert({
+              school_id: schoolId,
+              type: scanType,
+              status: scanStatus,
+              timestamp: scanTime,
+              source: `staff_id:${staff_id}`
+            })
+            .select()
+            .maybeSingle();
+
+          if (insertErr) {
+            console.error('[record_attendance_scan] Staff insert error:', insertErr);
+            return NextResponse.json({ error: insertErr.message }, { status: 500 });
+          }
+
+          // 3. Trigger email to staff person confirming their entry / exit!
+          let staffEmailSent = false;
+          if (staffEmail && process.env.RESEND_API_KEY) {
+            try {
+              const { Resend } = await import('resend');
+              const resend = new Resend(process.env.RESEND_API_KEY);
+              const dateStr = new Date(scanTime).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+              const timeStr = new Date(scanTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+              const emailHtml = `
+                <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+                  <div style="background: #1e3a8a; padding: 24px; text-align: center; color: white;">
+                    <h2 style="margin: 0; font-size: 18px; font-weight: 800; text-transform: uppercase;">MyEduRide Staff Portal</h2>
+                    <p style="margin: 4px 0 0; font-size: 11px; opacity: 0.9; text-transform: uppercase; tracking: 0.05em; color: #fbbf24;">Terminal Scan Verified</p>
+                  </div>
+                  <div style="padding: 24px; background: white;">
+                    <h3 style="color: #111827; margin-top: 0; font-size: 15px; font-weight: 700;">Hello ${staffName},</h3>
+                    <p style="color: #4b5563; font-size: 13.5px; line-height: 1.5;">Your terminal gateway boarding event has been successfully processed by the school node.</p>
+                    
+                    <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 20px 0; border: 1px solid #f3f4f6;">
+                      <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                        <tr>
+                          <td style="color: #6b7280; padding: 4px 0; font-weight: 600;">STAFF MEMBER</td>
+                          <td style="color: #111827; padding: 4px 0; text-align: right; font-weight: 700;">${staffName}</td>
+                        </tr>
+                        <tr>
+                          <td style="color: #6b7280; padding: 4px 0; font-weight: 600;">PASSAGE DIRECTION</td>
+                          <td style="color: #111827; padding: 4px 0; text-align: right; font-weight: 700; text-transform: uppercase;">${scanType === 'arrival' ? 'CHECK-IN (ENTRY)' : 'CHECK-OUT (EXIT)'}</td>
+                        </tr>
+                        <tr>
+                          <td style="color: #6b7280; padding: 4px 0; font-weight: 600;">RECORDED TIME</td>
+                          <td style="color: #111827; padding: 4px 0; text-align: right; font-weight: 700;">${timeStr} on ${dateStr}</td>
+                        </tr>
+                        <tr>
+                          <td style="color: #6b7280; padding: 4px 0; font-weight: 600;">GATE NODE</td>
+                          <td style="color: #059669; padding: 4px 0; text-align: right; font-weight: 750; text-transform: uppercase;">STATION ALPHA LIVE</td>
+                        </tr>
+                      </table>
+                    </div>
+                    
+                    <p style="color: #9ca3af; font-size: 11px; text-align: center; margin-top: 24px; border-top: 1px solid #f3f4f6; padding-top: 16px;">
+                      This email is an automated gate security receipt powered by MyEduRide Safety Network.
+                    </p>
+                  </div>
+                </div>
+              `;
+
+              await resend.emails.send({
+                from: 'MyEduRide Gateways <noreply@assetid.site>',
+                to: staffEmail,
+                subject: `Gateway Transit Receipt: [${scanType.toUpperCase()}] ${staffName}`,
+                html: emailHtml,
+              });
+              staffEmailSent = true;
+            } catch (err) {
+              console.error('[record_attendance_scan] Failed to send staff email alert:', err);
+            }
+          }
+
+          return NextResponse.json({ 
+            success: true, 
+            record: insertedRecord, 
+            staff_email_sent: staffEmailSent 
+          });
+        }
       }
 
       default:

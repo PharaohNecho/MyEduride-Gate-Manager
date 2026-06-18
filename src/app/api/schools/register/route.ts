@@ -176,6 +176,66 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // F. Send welcome registration email
+    if (adminEmail && process.env.RESEND_API_KEY) {
+      try {
+        const { Resend } = await import('resend');
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        const emailHtml = `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 580px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); background-color: #ffffff;">
+            <div style="background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); padding: 32px; text-align: center; color: #ffffff;">
+              <h1 style="margin: 0; font-size: 24px; font-weight: 900; letter-spacing: -0.025em; text-transform: uppercase;">MYEDURIDE</h1>
+              <p style="margin: 6px 0 0; font-size: 13px; opacity: 0.9; font-weight: 500; tracking: 0.05em; text-transform: uppercase; color: #fbbf24;">Terminal Node Activated Successfully</p>
+            </div>
+            <div style="padding: 32px; color: #1e293b; line-height: 1.6;">
+              <h2 style="color: #0f172a; margin-top: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.01em;">Welcome to MyEduRide Gate Control, ${adminFullName}!</h2>
+              <p style="font-size: 14px;">Your school registry <strong>${schoolName}</strong> has been successfully initialized on our cloud native gate pass networks. Your administration gateway is live and waiting.</p>
+              
+              <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin: 24px 0;">
+                <h3 style="margin-top: 0; font-size: 13px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; border-b: 1px solid #e2e8f0; padding-bottom: 8px;">Your Supervisor Terminal Credentials</h3>
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px;">
+                  <tr>
+                    <td style="color: #64748b; padding: 6px 0; font-weight: 600;">PORTAL WEB ADDRESS</td>
+                    <td style="color: #0f172a; padding: 6px 0; text-align: right; font-weight: 700; word-break: break-all;">https://myeduride.com</td>
+                  </tr>
+                  <tr>
+                    <td style="color: #64748b; padding: 6px 0; font-weight: 600;">USERNAME</td>
+                    <td style="color: #0f172a; padding: 6px 0; text-align: right; font-weight: 700; font-family: monospace;">${adminUsername}</td>
+                  </tr>
+                  <tr>
+                    <td style="color: #64748b; padding: 6px 0; font-weight: 600;">EMAIL PROFILE</td>
+                    <td style="color: #0f172a; padding: 6px 0; text-align: right; font-weight: 700;">${adminEmail}</td>
+                  </tr>
+                  <tr>
+                    <td style="color: #64748b; padding: 6px 0; font-weight: 600;">TERMINAL ID</td>
+                    <td style="color: #1e40af; padding: 6px 0; text-align: right; font-weight: 700; font-family: monospace;">${schoolId}</td>
+                  </tr>
+                </table>
+              </div>
+
+              <p style="font-size: 13px; color: #475569;">Using your terminal dashboard, you can now customize student RFID/QR ID templates, keep track of daily entry & exit times, manage classes of students, sync parent-guardian linkage registries, and dispatch instant security notifications automatically.</p>
+
+              <div style="text-align: center; margin-top: 32px; margin-bottom: 16px;">
+                <a href="https://myeduride.com/auth/login" style="background-color: #1e40af; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 13px; display: inline-block;">Access Terminal Control Console</a>
+              </div>
+            </div>
+            <div style="background-color: #f1f5f9; padding: 16px; text-align: center; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0;">
+              This email is an automated confirmation sent because you registered on the MyEduRide Gate Network.
+            </div>
+          </div>
+        `;
+
+        await resend.emails.send({
+          from: 'MyEduRide Gateway <noreply@assetid.site>',
+          to: adminEmail,
+          subject: `School Activated on MyEduRide Gate Network: ${schoolName}`,
+          html: emailHtml,
+        });
+      } catch (err) {
+        console.error('[register-school] Welcome email failed:', err);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: 'School and administrator account registered successfully!',
