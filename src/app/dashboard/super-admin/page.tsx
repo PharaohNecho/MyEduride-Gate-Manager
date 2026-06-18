@@ -306,6 +306,7 @@ export default function SuperAdminDashboard() {
   // Drag-and-Drop visual layout state
   const [isDragMode, setIsDragMode] = useState(false);
   const [isTemplateEditorOpen, setIsTemplateEditorOpen] = useState(false);
+  const [editorActiveTab, setEditorActiveTab] = useState<'front' | 'back' | 'sizes'>('front');
   
   const [positions, setPositions] = useState({
     schoolHeader: { x: 0, y: 0 },

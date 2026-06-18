@@ -11,6 +11,7 @@ import {
   Edit, ShieldAlert, Layers, KeyRound, User, Trash2, Camera, RefreshCw, ArrowUpCircle, Video, Key, Clock, Landmark, Wifi,
   List, UserPlus, AlertCircle, XCircle
 } from 'lucide-react';
+import { motion } from 'motion/react';
 import Link from 'next/link';
 import StudentAvatar from '@/components/shared/StudentAvatar';
 import PickupRequestsPanel from '@/components/admin/PickupRequestsPanel';
@@ -480,10 +481,24 @@ export default function SchoolAdminDashboard() {
   const handleSuccessfulQRDecode = (decodedData: string) => {
     playGateBeep();
 
+    // If decodedData is a verification URL, extract the actual student Id or staff Id.
+    let lookupId = decodedData;
+    if (decodedData && (decodedData.startsWith('http://') || decodedData.startsWith('https://') || decodedData.includes('/verify/'))) {
+      try {
+        const parts = decodedData.split('/');
+        const lastPart = parts[parts.length - 1];
+        if (lastPart) {
+          lookupId = decodeURIComponent(lastPart).trim();
+        }
+      } catch (e) {
+        console.error('[QR] Failed to parse verification URL', e);
+      }
+    }
+
     // Look up this data in students and parents
-    const studentMatch = students.find(s => s.id === decodedData || s.rfid === decodedData) || 
-                         simStudentOptions.find(s => s.id === decodedData);
-    const staffMatch = staffList.find(s => s.id === decodedData || s.username === decodedData);
+    const studentMatch = students.find(s => s.id === lookupId || s.rfid === lookupId) || 
+                         simStudentOptions.find(s => s.id === lookupId);
+    const staffMatch = staffList.find(s => s.id === lookupId || s.username === lookupId);
 
     if (studentMatch) {
       const scanDirection = studentScanDirection || 'in';
@@ -631,6 +646,144 @@ export default function SchoolAdminDashboard() {
   const [selectedIdStudent, setSelectedIdStudent] = useState(null);
   const [cardPrinting, setCardPrinting] = useState(false);
   const [exporting, setExporting] = useState(false);
+
+  // ID Cards Template styling and position states in school-admin to match super-admin editor
+  const [positions, setPositions] = useState<any>({
+    schoolHeader: { x: 0, y: 0 },
+    titlePill: { x: 0, y: 0 },
+    photoBox: { x: 0, y: 0 },
+    detailsBlock: { x: 0, y: 0 },
+    barcodeBlock: { x: 0, y: 0 },
+    qrBlock: { x: 0, y: 0 },
+    myEduRideBadge: { x: 0, y: 0 },
+    secureBadge: { x: 0, y: 0 },
+    backHeader: { x: 0, y: 0 },
+    signatureBlock: { x: 0, y: 0 },
+    returnBox: { x: 0, y: 0 },
+    disclaimerBlock: { x: 0, y: 0 },
+  });
+
+  const [placeholderSizes, setPlaceholderSizes] = useState<any>({
+    photoWidth: 88,
+    photoHeight: 106,
+    titlePillWidth: 180,
+    titlePillFontSize: 11,
+    schoolHeaderFontSize: 17,
+    detailsFontSize: 10.5,
+    qrSize: 40,
+    barcodeWidth: 120,
+    barcodeHeight: 18,
+  });
+
+  const [cardPrimaryColor, setCardPrimaryColor] = useState('#1e40af');
+  const [cardSecondaryColor, setCardSecondaryColor] = useState('#3b82f6');
+  const [cardBgColor, setCardBgColor] = useState('#f8fafc');
+  const [cardFontFamily, setCardFontFamily] = useState<'sans' | 'serif' | 'mono'>('sans');
+  const [cardLogoType, setCardLogoType] = useState<'shield' | 'graduation' | 'scholastic' | 'shield_tribal'>('shield_tribal');
+  const [cardLayoutSide, setCardLayoutSide] = useState<'dual' | 'front' | 'back'>('dual');
+  const [customTitleText, setCustomTitleText] = useState('STUDENT CARD');
+
+  // Features activation toggles
+  const [cardShowPhoto, setCardShowPhoto] = useState(true);
+  const [cardShowQR, setCardShowQR] = useState(true);
+  const [cardShowBarcode, setCardShowBarcode] = useState(true);
+  const [cardShowLogo, setCardShowLogo] = useState(true);
+  const [cardShowAddress, setCardShowAddress] = useState(true);
+  const [cardShowSignature, setCardShowSignature] = useState(true);
+  const [cardShowDisclaimer, setCardShowDisclaimer] = useState(true);
+
+  // Custom static text fields
+  const [cardDisclaimerText, setCardDisclaimerText] = useState('The card is an official proof of student status and must be carried at all times while on campus or when using school facilities.');
+  const [cardReturnInstructions, setCardReturnInstructions] = useState('If found, please return ID card to school administration. Thank you');
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+
+  useEffect(() => {
+    try {
+      const savedPositions = localStorage.getItem('myeduride_id_positions');
+      if (savedPositions) {
+        setPositions(JSON.parse(savedPositions));
+      }
+      const savedSizes = localStorage.getItem('myeduride_id_sizes');
+      if (savedSizes) {
+        setPlaceholderSizes(JSON.parse(savedSizes));
+      }
+      const primaryColor = localStorage.getItem('myeduride_card_primary_color');
+      if (primaryColor) setCardPrimaryColor(primaryColor);
+
+      const secondaryColor = localStorage.getItem('myeduride_card_secondary_color');
+      if (secondaryColor) setCardSecondaryColor(secondaryColor);
+
+      const bgColor = localStorage.getItem('myeduride_card_bg_color');
+      if (bgColor) setCardBgColor(bgColor);
+
+      const fontFamily = localStorage.getItem('myeduride_card_font_family');
+      if (fontFamily) setCardFontFamily(fontFamily as any);
+
+      const logoType = localStorage.getItem('myeduride_card_logo_type');
+      if (logoType) setCardLogoType(logoType as any);
+
+      const layoutSide = localStorage.getItem('myeduride_card_layout_side');
+      if (layoutSide) setCardLayoutSide(layoutSide as any);
+
+      const titleText = localStorage.getItem('myeduride_custom_title_text');
+      if (titleText) setCustomTitleText(titleText);
+
+      const disclaimerText = localStorage.getItem('myeduride_card_disclaimer_text');
+      if (disclaimerText) setCardDisclaimerText(disclaimerText);
+
+      const returnInstructions = localStorage.getItem('myeduride_card_return_instructions');
+      if (returnInstructions) setCardReturnInstructions(returnInstructions);
+
+      const showPhoto = localStorage.getItem('myeduride_card_show_photo');
+      if (showPhoto) setCardShowPhoto(showPhoto === 'true');
+
+      const showQR = localStorage.getItem('myeduride_card_show_qr');
+      if (showQR) setCardShowQR(showQR === 'true');
+
+      const showBarcode = localStorage.getItem('myeduride_card_show_barcode');
+      if (showBarcode) setCardShowBarcode(showBarcode === 'true');
+
+      const showLogo = localStorage.getItem('myeduride_card_show_logo');
+      if (showLogo) setCardShowLogo(showLogo === 'true');
+
+      const showAddress = localStorage.getItem('myeduride_card_show_address');
+      if (showAddress) setCardShowAddress(showAddress === 'true');
+
+      const showSignature = localStorage.getItem('myeduride_card_show_signature');
+      if (showSignature) setCardShowSignature(showSignature === 'true');
+
+      const showDisclaimer = localStorage.getItem('myeduride_card_show_disclaimer');
+      if (showDisclaimer) setCardShowDisclaimer(showDisclaimer === 'true');
+    } catch (e) {
+      console.error('Error loading card settings in school-admin:', e);
+    }
+  }, []);
+
+  const selectedPerson = selectedIdStudent ? {
+    id: selectedIdStudent.id,
+    name: `${selectedIdStudent.first_name} ${selectedIdStudent.last_name}`,
+    schoolName: schoolName || 'GRAND ELITE ACADEMIC CENTER',
+    idNo: selectedIdStudent.id,
+    birth: '12/04/2012',
+    address: '23 Evbuomwan St, GRA, Benin City',
+    avatar: selectedIdStudent.photo_url || '',
+    type: 'Student',
+    grade: selectedIdStudent.grade || 'General'
+  } : null;
+
+  useEffect(() => {
+    if (!selectedPerson) return;
+    const qrText = `https://myeduride.com/verify/student/${encodeURIComponent(selectedPerson.idNo || 'unknown')}`;
+    import('qrcode').then((QRCode) => {
+      QRCode.toDataURL(qrText, { margin: 1, width: 220, color: { dark: '#000000', light: '#ffffff' } })
+        .then(url => {
+          setQrCodeDataUrl(url);
+        })
+        .catch(err => {
+          console.error('[QR] failed:', err);
+        });
+    });
+  }, [selectedIdStudent, schoolName]);
   const [resetUser, setResetUser] = useState(null);
   const [resetPwdVal, setResetPwdVal] = useState('');
   const [resetSuccessMsg, setResetSuccessMsg] = useState('');
@@ -4129,53 +4282,336 @@ export default function SchoolAdminDashboard() {
               <div className="lg:col-span-7 flex flex-col items-center justify-center p-6 bg-slate-100 rounded-3xl border border-slate-200/50 min-h-[380px] space-y-6">
                 
                 {selectedIdStudent ? (
-                  <div className="w-full max-w-sm rounded-[24px] bg-gradient-to-tr from-[#0f172a] via-[#1e3a8a] to-[#2563eb] text-white p-6 shadow-[0_20px_40px_rgba(30,58,138,0.22)] border border-white/10 flex flex-col justify-between relative overflow-hidden h-[240px] text-left">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-[#fbbf24]/10 rounded-full blur-xl animate-pulse" />
-                    
-                    {/* ID Header */}
-                    <div className="flex justify-between items-start pb-2 border-b border-white/10">
-                      <div>
-                        <h4 className="text-[10px] font-black uppercase tracking-widest text-amber-400">MyEduRide ID</h4>
-                        <p className="text-[8px] text-slate-200 uppercase font-bold tracking-wider leading-none">{schoolName || 'Grand Elite Academic Center'}</p>
-                      </div>
-                      <span className="text-[8px] font-semibold bg-emerald-500/10 text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-500/20">Secure Node</span>
-                    </div>
+                  <div className="w-full flex flex-col items-center">
+                    {/* Centered preview container with dynamic scale to fit nicely */}
+                    <div 
+                      className="overflow-hidden p-2 flex flex-col items-center justify-center w-full"
+                    >
+                      <div 
+                        id="school-admin-card-container"
+                        className="scale-[0.58] sm:scale-[0.67] md:scale-[0.75] lg:scale-[0.58] xl:scale-[0.72] origin-center my-[-55px] transition-transform"
+                        style={{
+                          fontFamily: cardFontFamily === 'sans' ? 'sans-serif' : cardFontFamily === 'serif' ? 'Georgia, serif' : 'monospace'
+                        }}
+                      >
+                        <div className="flex flex-col gap-5 items-center justify-center">
+                          {/* FRONT SIDE OF ID CARD */}
+                          {(cardLayoutSide === 'dual' || cardLayoutSide === 'front') && (
+                            <div
+                              id="card-front-side"
+                              className="w-[480px] h-[304px] bg-white rounded-[24px] shadow-2xl border border-slate-200/90 p-5.5 relative overflow-hidden select-none shrink-0"
+                              style={{ backgroundColor: cardBgColor }}
+                            >
+                              {/* Top-Left Diagonal Artistic Geometric Stripes */}
+                              <div className="absolute top-0 left-0 w-[160px] h-[160px] pointer-events-none z-10 opacity-90 overflow-hidden">
+                                <div className="absolute -top-10 -left-10 w-32 h-32 rotate-45" style={{ backgroundColor: cardPrimaryColor }} />
+                                <div className="absolute top-0 -left-12 w-32 h-12 rotate-45 opacity-70" style={{ backgroundColor: cardSecondaryColor }} />
+                                <div className="absolute top-5 -left-16 w-32.5 h-8 rotate-45 opacity-40 bg-cyan-300" />
+                              </div>
 
-                    {/* ID Body */}
-                    <div className="flex items-center justify-between py-3">
-                      <div className="flex items-center gap-3">
-                        <StudentAvatar 
-                          photoUrl={selectedIdStudent.photo_url} 
-                          firstName={selectedIdStudent.first_name} 
-                          lastName={selectedIdStudent.last_name} 
-                          size={52} 
-                        />
-                        <div className="text-left space-y-1">
-                          <p className="text-sm font-black text-white leading-none capitalize">{selectedIdStudent.first_name} {selectedIdStudent.last_name}</p>
-                          <p className="text-[10px] text-amber-200 font-extrabold">{selectedIdStudent.grade}</p>
-                          <p className="text-[8px] text-slate-300 font-bold font-mono">RFID: RFID-{selectedIdStudent.id.toUpperCase()}</p>
+                              {/* Top Right "MyEduRide enabled" badge */}
+                              <div 
+                                className="absolute top-4 right-4 z-40 flex items-center gap-1 bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200/80 px-2 py-0.5 rounded-full select-none shadow-xs"
+                                style={{ 
+                                  transform: `translate(${positions.myEduRideBadge.x}px, ${positions.myEduRideBadge.y}px)`
+                                }}
+                              >
+                                <div className="w-4 h-4 rounded-full bg-[#1e40af] flex items-center justify-center text-white p-0.5 shadow-sm">
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-2.5 h-2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                                </div>
+                                <span className="text-[7.5px] font-black text-slate-800 tracking-wider">MyEduRide <span className="text-[#3b82f6] lowercase italic font-bold">enabled</span></span>
+                              </div>
+
+                              {/* Front School Crest/Logo */}
+                              {cardShowLogo && (
+                                <div className="absolute right-8 top-12 w-48 h-48 opacity-[0.06] pointer-events-none z-0 text-slate-700">
+                                  {cardLogoType === 'shield_tribal' ? (
+                                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full"><path d="M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10a10 10 0 0 0 10-10A10 10 0 0 0 12 2M12 4a2 2 0 1 1-2 2a2 2 0 0 1 2-2M8 12h8a4 4 0 0 1-4 4a4 4 0 0 1-4-4Z"/></svg>
+                                  ) : (
+                                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Main School header block */}
+                              <div 
+                                className="text-center pt-1.5 pl-[36px] pr-[116px] z-30 relative select-none"
+                                style={{ 
+                                  transform: `translate(${positions.schoolHeader.x}px, ${positions.schoolHeader.y}px)`
+                                }}
+                              >
+                                <h3 className="font-extrabold tracking-tight leading-none block truncate text-slate-900" style={{ color: cardPrimaryColor, fontSize: `${placeholderSizes.schoolHeaderFontSize}px` }}>
+                                  {schoolName || 'GRAND ELITE ACADEMIC CENTER'}
+                                </h3>
+                                {cardShowAddress && (
+                                  <p className="text-[8.5px] text-slate-500 font-extrabold tracking-wider leading-none mt-1 uppercase truncate">
+                                    23 Evbuomwan St, GRA, Benin City
+                                  </p>
+                                )}
+                              </div>
+
+                              {/* Large banner title pill */}
+                              <div 
+                                className="flex justify-center mt-2.5 z-30 relative select-none"
+                                style={{ 
+                                  transform: `translate(${positions.titlePill.x}px, ${positions.titlePill.y}px)`
+                                }}
+                              >
+                                <div 
+                                  className="px-6 py-1 text-center font-black text-white uppercase tracking-wider rounded-md shadow-xs"
+                                  style={{ 
+                                    background: `linear-gradient(135deg, ${cardSecondaryColor} 0%, ${cardPrimaryColor} 100%)`,
+                                    minWidth: `${placeholderSizes.titlePillWidth}px`,
+                                    fontSize: `${placeholderSizes.titlePillFontSize}px`
+                                  }}
+                                >
+                                  {customTitleText}
+                                </div>
+                              </div>
+
+                              {/* Body portion: Photo & Details Layout block */}
+                              <div className="flex flex-row gap-4.5 mt-3 items-start z-20 relative select-none w-full">
+                                {/* Photo Left Part */}
+                                <div 
+                                  className="flex-shrink-0 flex flex-col items-center justify-start"
+                                  style={{ 
+                                    transform: `translate(${positions.photoBox.x}px, ${positions.photoBox.y}px)`,
+                                    width: `${placeholderSizes.photoWidth + 8}px`
+                                  }}
+                                >
+                                  {cardShowPhoto && (
+                                    <div 
+                                      className="rounded-lg bg-white border border-slate-200/80 flex items-center justify-center shadow-md relative overflow-hidden shrink-0"
+                                      style={{
+                                        width: `${placeholderSizes.photoWidth}px`,
+                                        height: `${placeholderSizes.photoHeight}px`
+                                      }}
+                                    >
+                                      {selectedPerson && selectedPerson.avatar ? (
+                                        <img 
+                                          src={selectedPerson.avatar} 
+                                          alt={selectedPerson.name} 
+                                          className="w-full h-full object-cover" 
+                                          referrerPolicy="no-referrer"
+                                        />
+                                      ) : (
+                                        <div className="w-full h-full bg-slate-950 flex flex-col items-center justify-center text-white">
+                                          <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-slate-400"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                                        </div>
+                                      )}
+                                      
+                                      {/* Overlaid Role ribbon */}
+                                      <div className="absolute bottom-1 inset-x-1 py-0.5 bg-slate-950/85 backdrop-blur-xs text-[7px] text-white font-black rounded-sm text-center uppercase tracking-wider block">
+                                        {selectedPerson ? selectedPerson.type : 'Student'}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Details Portion Middle-Right */}
+                                <div className="flex-1 flex flex-col justify-between pl-0.5" style={{ height: `${placeholderSizes.photoHeight}px` }}>
+                                  <div 
+                                    className="space-y-1 w-full"
+                                    style={{
+                                      transform: `translate(${positions.detailsBlock.x}px, ${positions.detailsBlock.y}px)`
+                                    }}
+                                  >
+                                    <div className="flex flex-row items-center leading-tight font-black" style={{ fontSize: `${placeholderSizes.detailsFontSize}px` }}>
+                                      <span className="w-[50px] text-slate-400 font-extrabold uppercase tracking-widest text-[8px] shrink-0">Name:</span>
+                                      <span className="flex-grow font-black text-slate-950 uppercase truncate" style={{ fontSize: `${placeholderSizes.detailsFontSize + 0.5}px` }}>
+                                        {selectedPerson ? selectedPerson.name : 'STUDENT NAME'}
+                                      </span>
+                                    </div>
+                                    
+                                    <div className="flex flex-row items-center leading-tight" style={{ fontSize: `${placeholderSizes.detailsFontSize}px` }}>
+                                      <span className="w-[50px] text-slate-400 font-extrabold uppercase tracking-widest text-[8px] shrink-0">Birth:</span>
+                                      <span className="flex-grow font-black text-slate-800" style={{ fontSize: `${placeholderSizes.detailsFontSize}px` }}>
+                                        {selectedPerson ? selectedPerson.birth : '12/04/2012'}
+                                      </span>
+                                    </div>
+
+                                    <div className="flex flex-row items-center leading-tight" style={{ fontSize: `${placeholderSizes.detailsFontSize}px` }}>
+                                      <span className="w-[50px] text-slate-400 font-extrabold uppercase tracking-widest text-[8px] shrink-0">Address:</span>
+                                      <span className="flex-grow font-black text-slate-600 truncate uppercase" style={{ fontSize: `${placeholderSizes.detailsFontSize - 0.5}px` }}>
+                                        {selectedPerson ? selectedPerson.address : '23 Evbuomwan St, GRA, Benin City'}
+                                      </span>
+                                    </div>
+
+                                    <div className="flex flex-row items-center leading-tight" style={{ fontSize: `${placeholderSizes.detailsFontSize}px` }}>
+                                      <span className="w-[50px] text-slate-400 font-extrabold uppercase tracking-widest text-[8px] shrink-0">ID No:</span>
+                                      <span className="flex-grow font-mono font-black text-[#1e40af] uppercase" style={{ color: cardPrimaryColor, fontSize: `${placeholderSizes.detailsFontSize + 1}px` }}>
+                                        {selectedPerson ? selectedPerson.idNo : 'STU-F950-MQBSEC90'}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Barcode & QR Code cluster block */}
+                                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 mt-1">
+                                    {cardShowBarcode ? (
+                                      <div 
+                                        className="flex flex-col items-start leading-none gap-0.5"
+                                        style={{
+                                          transform: `translate(${positions.barcodeBlock.x}px, ${positions.barcodeBlock.y}px)`
+                                        }}
+                                      >
+                                        {/* Procedural dynamic barcode vector */}
+                                        <div 
+                                          className="bg-white flex gap-0.5 items-stretch p-0.5 select-none shrink-0 border border-slate-100"
+                                          style={{
+                                            width: `${placeholderSizes.barcodeWidth}px`,
+                                            height: `${placeholderSizes.barcodeHeight}px`
+                                          }}
+                                        >
+                                          {[1, 2, 4, 1, 3, 2, 1, 2, 4, 2, 1, 3, 1, 2, 4, 1, 2, 1, 1, 4, 2, 1, 2].map((val, idx) => (
+                                            <div key={idx} className="bg-slate-950 shrink-0" style={{ width: `${val * 1.1}px` }} />
+                                          ))}
+                                        </div>
+                                        <span className="text-[7.5px] font-mono text-slate-400 font-bold tracking-widest block mt-0.5">{selectedPerson?.idNo || 'STU-F950-MQBSEC90'}</span>
+                                      </div>
+                                    ) : <div />}
+   
+                                    {cardShowQR && (
+                                      <div 
+                                        className="bg-white rounded-md border border-slate-200/80 flex items-center justify-center p-0.5 shadow-sm shrink-0"
+                                        style={{
+                                          transform: `translate(${positions.qrBlock.x}px, ${positions.qrBlock.y}px)`,
+                                          width: `${placeholderSizes.qrSize}px`,
+                                          height: `${placeholderSizes.qrSize}px`
+                                        }}
+                                      >
+                                        {qrCodeDataUrl ? (
+                                          <img src={qrCodeDataUrl} alt="QR" className="w-full h-full" />
+                                        ) : (
+                                          <div className="w-full h-full bg-slate-100 animate-pulse" />
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Benin Tribal mask / Graduation Cap corner emblem */}
+                              <div 
+                                className="absolute left-4 bottom-3 z-30 flex items-center gap-1.5 opacity-90 select-none"
+                                style={{
+                                  transform: `translate(${positions.secureBadge.x}px, ${positions.secureBadge.y}px)`
+                                }}
+                              >
+                                {cardLogoType === 'shield_tribal' ? (
+                                  <div className="w-8 h-10 rounded-lg flex items-center justify-center shrink-0 shadow-md p-1 relative z-10 text-white" style={{ backgroundColor: cardPrimaryColor }}>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-full h-full"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM12 11h.01M10 8h4v4h-4z"/></svg>
+                                  </div>
+                                ) : (
+                                  <GraduationCap size={16} className="text-slate-400" />
+                                )}
+                                <span className="text-[7px] text-slate-400 font-extrabold uppercase tracking-widest">Secure partition</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* BACK SIDE OF ID CARD */}
+                          {(cardLayoutSide === 'dual' || cardLayoutSide === 'back') && (
+                            <div
+                              id="card-back-side"
+                              className="w-[480px] h-[304px] bg-white rounded-[24px] shadow-2xl border border-slate-200/90 p-5.5 relative overflow-hidden select-none shrink-0"
+                              style={{ backgroundColor: cardBgColor }}
+                            >
+                              {/* Graduation Cap geometric backdrop pattern watermark */}
+                              <svg className="absolute inset-0 w-full h-full opacity-[0.03] pointer-events-none text-slate-800" xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 100 100">
+                                <path d="M50 20 L80 35 L50 50 L20 35 Z" fill="currentColor" />
+                                <path d="M30 40 L30 55 C30 65 70 65 70 55 L70 40" fill="none" stroke="currentColor" strokeWidth="3" />
+                              </svg>
+
+                              {/* Outer card framing decoration */}
+                              <div className="absolute top-0 right-0 w-[130px] h-[130px] pointer-events-none opacity-25 overflow-hidden">
+                                <div className="absolute -top-10 -right-10 w-28 h-28 rotate-45" style={{ backgroundColor: cardPrimaryColor }} />
+                              </div>
+
+                              {/* Top Centered School Logo & Metadata */}
+                              <div 
+                                className="flex flex-col items-center pt-2 select-none z-30 relative"
+                                style={{ 
+                                  transform: `translate(${positions.backHeader.x}px, ${positions.backHeader.y}px)`
+                                }}
+                              >
+                                {/* Crest in Shield */}
+                                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-lg p-2" style={{ backgroundColor: cardPrimaryColor }}>
+                                  {cardLogoType === 'shield_tribal' ? (
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-full h-full"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM12 11h.01M10 8h4v4h-4z"/></svg>
+                                  ) : (
+                                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                                  )}
+                                </div>
+                                
+                                <h4 className="text-[15px] font-extrabold tracking-tight mt-1.5 text-slate-900 uppercase leading-none" style={{ color: cardPrimaryColor }}>
+                                  {schoolName || 'GRAND ELITE ACADEMIC CENTER'}
+                                </h4>
+                                <p className="text-[8.5px] text-slate-400 font-extrabold tracking-wider uppercase mt-1">
+                                  23 Evbuomwan St, GRA, Benin City
+                                </p>
+                              </div>
+
+                              {/* Mid Section: Authorised Signature and Return Instructions Box */}
+                              <div className="grid grid-cols-2 gap-3.5 mt-4.5 z-10 relative px-2.5">
+                                {/* Authorised Signature Capsule */}
+                                <div 
+                                  className="flex flex-col items-center"
+                                  style={{ 
+                                    transform: `translate(${positions.signatureBlock.x}px, ${positions.signatureBlock.y}px)`
+                                  }}
+                                >
+                                  <span className="text-[8.5px] font-black uppercase text-slate-400 tracking-wider mb-0.5">Authorised Signature</span>
+                                  {cardShowSignature ? (
+                                    <div className="w-full h-11 bg-slate-50 border border-slate-200/80 rounded-lg flex flex-col items-center justify-center p-0.5 shadow-inner relative overflow-hidden">
+                                      <svg viewBox="0 0 100 35" className="w-24 h-7 text-[#1e40af] fill-none stroke-current" strokeWidth="1.8" strokeLinecap="round">
+                                        <path d="M10 25 C25 5, 45 30, 50 15 C55 4, 75 8, 85 20 M35 15 L65 15" />
+                                      </svg>
+                                      <span className="text-[7px] font-bold text-slate-500 absolute bottom-0.5 font-sans leading-none">Principal</span>
+                                    </div>
+                                  ) : (
+                                    <div className="w-full h-11 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 text-[8px] font-bold uppercase border border-dashed border-slate-300">
+                                      Disabled
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Return Instructions Capsule */}
+                                <div 
+                                  className="flex flex-col items-stretch"
+                                  style={{ 
+                                    transform: `translate(${positions.returnBox.x}px, ${positions.returnBox.y}px)`
+                                  }}
+                                >
+                                  <span className="text-[8.5px] font-black uppercase text-slate-400 tracking-wider mb-0.5 text-center">Security Return</span>
+                                  <div className="h-11 bg-slate-50 border border-slate-200/60 rounded-lg p-1.5 flex flex-col justify-center items-center shadow-inner leading-tight text-center">
+                                    <p className="text-[8px] text-slate-600 font-extrabold max-w-[190px]">
+                                      {cardReturnInstructions}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Absolute Base Disclaimer Banner on light-shadow strip */}
+                              {cardShowDisclaimer && (
+                                <div 
+                                  className="absolute bottom-0 inset-x-0 bg-slate-100 border-t border-slate-200 py-2.5 px-4 z-30 shadow-inner select-none"
+                                  style={{ 
+                                    transform: `translate(${positions.disclaimerBlock.x}px, ${positions.disclaimerBlock.y}px)`
+                                  }}
+                                >
+                                  <p className="text-[8px] text-slate-800 text-center uppercase tracking-wide font-black leading-snug">
+                                    {cardDisclaimerText}
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Top-Right Mini Logo */}
+                              <div className="absolute right-4 top-4 opacity-15">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2c5.523 0 10 4.477 10 10s-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2Z"/><path d="m9 12 2 2 4-4"/></svg>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      </div>
-
-                      {/* crisp auto-generated QR code linked securely to this student */}
-                      <div className="flex flex-col items-center bg-white p-1.5 rounded-lg shadow-xs shrink-0 border border-white/10 select-none">
-                        <img 
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=60x60&color=0f172a&data=${encodeURIComponent(selectedIdStudent.id)}`} 
-                          alt="RFID Secure QR Card Link"
-                          className="w-[45px] h-[45px] block border-0"
-                          referrerPolicy="no-referrer"
-                        />
-                        <span className="text-[6px] font-black font-mono text-slate-900 tracking-wider uppercase mt-1 leading-none">RFID LINK</span>
-                      </div>
-                    </div>
-
-                    {/* ID Footer */}
-                    <div className="flex items-center justify-between pt-2 border-t border-white/10">
-                      <div className="text-[8px] font-mono text-slate-300">
-                        <span>NODE ID-CARD TERMINAL</span>
-                      </div>
-                      <div className="flex items-center gap-1 text-[8px] font-bold text-amber-400">
-                        <span>QR SECURE LINKED</span>
                       </div>
                     </div>
                   </div>
@@ -4187,13 +4623,14 @@ export default function SchoolAdminDashboard() {
                 <div className="grid grid-cols-2 gap-3 w-full max-w-sm">
                   <button
                     onClick={() => {
+                      if (!selectedPerson) return;
                       setCardPrinting(true);
                       setToastText('Spooling card format... linking layout...');
                       setTimeout(() => {
                         setCardPrinting(false);
                         setToastText(`Card for ${selectedIdStudent?.first_name} sent to Lagos Node printer.`);
                         setTimeout(() => setToastText(''), 2500);
-                      }, 3000);
+                      }, 2500);
                     }}
                     disabled={cardPrinting}
                     className="flex items-center justify-center gap-1.5 py-3 px-4 bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 font-bold text-xs rounded-2xl shadow-xs transition-colors cursor-pointer min-h-[44px]"
@@ -4204,13 +4641,212 @@ export default function SchoolAdminDashboard() {
 
                   <button
                     onClick={() => {
+                      if (!selectedPerson) return;
                       setExporting(true);
-                      setToastText('Generating PDF schema...');
-                      setTimeout(() => {
-                        setExporting(false);
-                        setToastText(`Student PDF export downloaded successfully!`);
-                        setTimeout(() => setToastText(''), 2500);
-                      }, 2500);
+                      setToastText('Generating custom PDF schema...');
+                      
+                      Promise.all([
+                        import('jspdf'),
+                        import('html2canvas'),
+                        import('qrcode')
+                      ]).then(async ([jsPDFModule, html2canvasModule, qrcodeModule]) => {
+                        const jsPDF = jsPDFModule.default;
+                        const html2canvas = html2canvasModule.default;
+                        const QRCode = qrcodeModule.default || qrcodeModule;
+
+                        const pdf = new jsPDF({
+                          orientation: 'landscape',
+                          unit: 'mm',
+                          format: [100.6, 70.98]
+                        });
+
+                        // Create a temporary off-screen container to guarantee flawless rendering
+                        const printGroup = document.createElement('div');
+                        printGroup.style.position = 'fixed';
+                        printGroup.style.bottom = '0px';
+                        printGroup.style.right = '0px';
+                        printGroup.style.width = '480px';
+                        printGroup.style.height = '304px';
+                        printGroup.style.opacity = '0.01';
+                        printGroup.style.pointerEvents = 'none';
+                        printGroup.style.zIndex = '-9999';
+                        document.body.appendChild(printGroup);
+
+                        try {
+                          const qrText = `https://myeduride.com/verify/student/${selectedPerson.idNo || 'unknown'}`;
+                          const qrDataUrl = await QRCode.toDataURL(qrText, { margin: 1, width: 140 });
+
+                          // Render FRONT SIDE
+                          const frontCard = document.createElement('div');
+                          frontCard.style.width = '480px';
+                          frontCard.style.height = '304px';
+                          frontCard.style.backgroundColor = cardBgColor;
+                          frontCard.style.position = 'relative';
+                          frontCard.style.overflow = 'hidden';
+                          frontCard.style.borderRadius = '24px';
+                          frontCard.style.border = '1px solid #e2e8f0';
+                          frontCard.style.padding = '22px';
+                          frontCard.style.boxSizing = 'border-box';
+                          frontCard.style.fontFamily = cardFontFamily === 'sans' ? 'sans-serif' : cardFontFamily === 'serif' ? 'Georgia, serif' : 'monospace';
+
+                          frontCard.innerHTML = `
+                            <div style="position: absolute; top: 0; left: 0; width: 160px; height: 160px; pointer-events: none; z-index: 10; opacity: 0.9; overflow: hidden;">
+                              <div style="position: absolute; top: -40px; left: -40px; width: 128px; height: 128px; transform: rotate(45deg); background-color: ${cardPrimaryColor};"></div>
+                              <div style="position: absolute; top: 0px; left: -48px; width: 128px; height: 48px; transform: rotate(45deg); opacity: 0.7; background-color: ${cardSecondaryColor};"></div>
+                              <div style="position: absolute; top: 20px; left: -64px; width: 130px; height: 32px; transform: rotate(45deg); opacity: 0.4; background-color: #67e8f9;"></div>
+                            </div>
+                            <div style="position: absolute; top: 16px; right: 16px; z-index: 40; display: flex; align-items: center; gap: 4px; background: linear-gradient(to right, #f8fafc, #f1f5f9); border: 1px solid #cbd5e1; padding: 2px 8px; border-radius: 9999px; transform: translate(${positions.myEduRideBadge.x}px, ${positions.myEduRideBadge.y}px);">
+                              <div style="width: 16px; height: 16px; border-radius: 50%; background-color: #1e40af; display: flex; align-items: center; justify-content: center; color: white; font-size: 8px; font-weight: bold;">M</div>
+                              <span style="font-size: 7.5px; font-weight: 900; color: #1e293b;">MyEduRide <span style="color: #3b82f6; font-style: italic; font-weight: bold;">enabled</span></span>
+                            </div>
+                            <div style="text-align: center; padding-top: 6px; padding-left: 36px; padding-right: 116px; z-index: 30; position: relative; transform: translate(${positions.schoolHeader.x}px, ${positions.schoolHeader.y}px);">
+                              <h3 style="font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; color: ${cardPrimaryColor}; font-size: ${placeholderSizes.schoolHeaderFontSize}px;">
+                                ${selectedPerson.schoolName}
+                              </h3>
+                              ${cardShowAddress ? `<p style="font-size: 8.5px; color: #64748b; font-weight: 800; letter-spacing: 0.05em; margin-top: 4px; margin-bottom: 0; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">23 Evbuomwan St, GRA, Benin City</p>` : ''}
+                            </div>
+                            <div style="display: flex; justify-content: center; margin-top: 10px; z-index: 30; position: relative; transform: translate(${positions.titlePill.x}px, ${positions.titlePill.y}px);">
+                              <div style="padding: 4px 24px; text-align: center; font-weight: 900; color: white; text-transform: uppercase; letter-spacing: 0.05em; border-radius: 6px; background: linear-gradient(135deg, ${cardSecondaryColor} 0%, ${cardPrimaryColor} 100%); min-width: ${placeholderSizes.titlePillWidth}px; font-size: ${placeholderSizes.titlePillFontSize}px;">
+                                ${customTitleText}
+                              </div>
+                            </div>
+                            <div style="display: flex; flex-direction: row; gap: 18px; margin-top: 12px; align-items: start; z-index: 20; position: relative; width: 100%;">
+                              <div style="flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: start; transform: translate(${positions.photoBox.x}px, ${positions.photoBox.y}px); width: ${placeholderSizes.photoWidth + 8}px;">
+                                ${cardShowPhoto ? `
+                                  <div style="border-radius: 8px; background-color: white; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); position: relative; overflow: hidden; flex-shrink: 0; width: ${placeholderSizes.photoWidth}px; height: ${placeholderSizes.photoHeight}px;">
+                                    ${selectedPerson.avatar ? `<img src="${selectedPerson.avatar}" style="width: 100%; height: 100%; object-fit: cover;" crossorigin="anonymous" />` : `
+                                      <div style="width: 100%; height: 100%; background-color: #020617; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 24px;">👤</div>
+                                    `}
+                                    <div style="position: absolute; bottom: 4px; left: 4px; right: 4px; padding: 2px 0; background-color: rgba(2, 6, 23, 0.85); font-size: 7px; color: white; font-weight: 900; border-radius: 2px; text-align: center; text-transform: uppercase; letter-spacing: 0.05em;">Student</div>
+                                  </div>
+                                ` : ''}
+                              </div>
+                              <div style="flex: 1; display: flex; flex-direction: column; justify-content: space-between; padding-left: 2px; height: ${placeholderSizes.photoHeight}px;">
+                                <div style="display: flex; flex-direction: column; gap: 4px; width: 100%; transform: translate(${positions.detailsBlock.x}px, ${positions.detailsBlock.y}px);">
+                                  <div style="display: flex; flex-direction: row; align-items: center; line-height: 1.25; font-weight: 900; font-size: ${placeholderSizes.detailsFontSize}px;">
+                                    <span style="width: 50px; color: #94a3b8; font-weight: 800; text-transform: uppercase; font-size: 8px; flex-shrink: 0;">Name:</span>
+                                    <span style="flex-grow: 1; font-weight: 900; color: #0f172a; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: ${placeholderSizes.detailsFontSize + 0.5}px;">${selectedPerson.name}</span>
+                                  </div>
+                                  <div style="display: flex; flex-direction: row; align-items: center; line-height: 1.25; font-size: ${placeholderSizes.detailsFontSize}px;">
+                                    <span style="width: 50px; color: #94a3b8; font-weight: 800; text-transform: uppercase; font-size: 8px; flex-shrink: 0;">Birth:</span>
+                                    <span style="flex-grow: 1; font-weight: 900; color: #1e293b; font-size: ${placeholderSizes.detailsFontSize}px;">${selectedPerson.birth}</span>
+                                  </div>
+                                  <div style="display: flex; flex-direction: row; align-items: center; line-height: 1.25; font-size: ${placeholderSizes.detailsFontSize}px;">
+                                    <span style="width: 50px; color: #94a3b8; font-weight: 800; text-transform: uppercase; font-size: 8px; flex-shrink: 0;">Address:</span>
+                                    <span style="flex-grow: 1; font-weight: 900; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: uppercase; font-size: ${placeholderSizes.detailsFontSize - 0.5}px;">${selectedPerson.address}</span>
+                                  </div>
+                                  <div style="display: flex; flex-direction: row; align-items: center; line-height: 1.25; font-size: ${placeholderSizes.detailsFontSize}px;">
+                                    <span style="width: 50px; color: #94a3b8; font-weight: 800; text-transform: uppercase; font-size: 8px; flex-shrink: 0;">ID No:</span>
+                                    <span style="flex-grow: 1; font-weight: 900; color: ${cardPrimaryColor}; text-transform: uppercase; font-family: monospace; font-size: ${placeholderSizes.detailsFontSize + 1}px;">${selectedPerson.idNo}</span>
+                                  </div>
+                                </div>
+                                <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 4px; border-top: 1px solid #f1f5f9; margin-top: 4px;">
+                                  ${cardShowBarcode ? `
+                                    <div style="display: flex; flex-direction: column; align-items: start; gap: 2px; transform: translate(${positions.barcodeBlock.x}px, ${positions.barcodeBlock.y}px);">
+                                      <div style="background-color: white; display: flex; gap: 2px; align-items: stretch; padding: 2px; border: 1px solid #f1f5f9; width: ${placeholderSizes.barcodeWidth}px; height: ${placeholderSizes.barcodeHeight}px;">
+                                        ${[1, 2, 4, 1, 3, 2, 1, 2, 4, 2, 1, 3, 1, 2, 4, 1, 2, 1, 1, 4, 2, 1, 2].map((val) => `<div style="background-color: #0f172a; flex-shrink: 0; width: ${val * 1.1}px;"></div>`).join('')}
+                                      </div>
+                                      <span style="font-size: 7.5px; font-family: monospace; color: #94a3b8; font-weight: bold; letter-spacing: 0.1em; margin-top: 2px;">${selectedPerson.idNo}</span>
+                                    </div>
+                                  ` : '<div></div>'}
+                                  ${cardShowQR ? `
+                                    <div style="background-color: white; border-radius: 6px; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; padding: 2px; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); flex-shrink: 0; transform: translate(${positions.qrBlock.x}px, ${positions.qrBlock.y}px); width: ${placeholderSizes.qrSize}px; height: ${placeholderSizes.qrSize}px;">
+                                      <img src="${qrDataUrl}" style="width: 100%; height: 100%;" />
+                                    </div>
+                                  ` : ''}
+                                </div>
+                              </div>
+                            </div>
+                            <div style="position: absolute; left: 16px; bottom: 12px; z-index: 30; display: flex; align-items: center; gap: 6px; opacity: 0.9; transform: translate(${positions.secureBadge.x}px, ${positions.secureBadge.y}px);">
+                              <div style="width: 32px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); color: white; background-color: ${cardPrimaryColor};"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 18px; height: 18px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM12 11h.01M10 8h4v4h-4z"/></svg></div>
+                              <span style="font-size: 7px; color: #94a3b8; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em;">Secure partition</span>
+                            </div>
+                          `;
+
+                          printGroup.appendChild(frontCard);
+                          
+                          // Run HTML2Canvas for FRONT
+                          const frontCanvas = await html2canvas(frontCard, { scale: 3, useCORS: true });
+                          const frontImgData = frontCanvas.toDataURL('image/png');
+                          pdf.addImage(frontImgData, 'PNG', 0, 0, 100.6, 70.98);
+
+                          // Render BACK SIDE
+                          pdf.addPage([100.6, 70.98], 'landscape');
+                          const backCard = document.createElement('div');
+                          backCard.style.width = '480px';
+                          backCard.style.height = '304px';
+                          backCard.style.backgroundColor = cardBgColor;
+                          backCard.style.position = 'relative';
+                          backCard.style.overflow = 'hidden';
+                          backCard.style.borderRadius = '24px';
+                          backCard.style.border = '1px solid #e2e8f0';
+                          backCard.style.padding = '22px';
+                          backCard.style.boxSizing = 'border-box';
+                          backCard.style.fontFamily = cardFontFamily === 'sans' ? 'sans-serif' : cardFontFamily === 'serif' ? 'Georgia, serif' : 'monospace';
+
+                          backCard.innerHTML = `
+                            <div style="position: absolute; top: 0; right: 0; width: 130px; height: 130px; pointer-events: none; opacity: 0.25; overflow: hidden;">
+                              <div style="position: absolute; top: -40px; right: -40px; width: 112px; height: 112px; transform: rotate(45deg); background-color: ${cardPrimaryColor};"></div>
+                            </div>
+                            <div style="display: flex; flex-direction: column; align-items: center; padding-top: 8px; z-index: 30; position: relative; transform: translate(${positions.backHeader.x}px, ${positions.backHeader.y}px);">
+                              <div style="width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); padding: 8px; background-color: ${cardPrimaryColor};">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 24px; height: 24px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM12 11h.01M10 8h4v4h-4z"/></svg>
+                              </div>
+                              <h4 style="font-size: 15px; font-weight: 800; letter-spacing: -0.02em; margin-top: 6px; margin-bottom: 0; color: ${cardPrimaryColor}; text-transform: uppercase;">
+                                ${selectedPerson.schoolName}
+                              </h4>
+                              <p style="font-size: 8.5px; color: #94a3b8; font-weight: 800; letter-spacing: 0.05em; margin-top: 4px; margin-bottom: 0; text-transform: uppercase;">23 Evbuomwan St, GRA, Benin City</p>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; z-index: 10; position: relative; padding-left: 10px; padding-right: 10px;">
+                              <div style="display: flex; flex-direction: column; align-items: center; transform: translate(${positions.signatureBlock.x}px, ${positions.signatureBlock.y}px);">
+                                <span style="font-size: 8.5px; font-weight: 950; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.05em; margin-bottom: 2px;">Authorised Signature</span>
+                                ${cardShowSignature ? `
+                                  <div style="width: 100%; height: 44px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2px; position: relative; overflow: hidden; box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.06);">
+                                    <svg viewBox="0 0 100 35" style="width: 96px; height: 28px; color: #1e40af; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round;">
+                                      <path d="M10 25 C25 5, 45 30, 50 15 C55 4, 75 8, 85 20 M35 15 L65 15" />
+                                    </svg>
+                                    <span style="font-size: 7px; font-weight: bold; color: #64748b; position: absolute; bottom: 2px;">Principal</span>
+                                  </div>
+                                ` : `
+                                  <div style="width: 100%; height: 44px; background-color: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 8px; font-weight: bold; text-transform: uppercase; border: 1px dashed #cbd5e1;">Disabled</div>
+                                `}
+                              </div>
+                              <div style="display: flex; flex-direction: column; align-items: stretch; transform: translate(${positions.returnBox.x}px, ${positions.returnBox.y}px);">
+                                <span style="font-size: 8.5px; font-weight: 950; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.05em; margin-bottom: 2px; text-align: center;">Security Return</span>
+                                <div style="height: 44px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.06); text-align: center;">
+                                  <p style="font-size: 8px; color: #475569; font-weight: 800; margin: 0; max-width: 190px; line-height: 1.2;">
+                                    ${cardReturnInstructions}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                            ${cardShowDisclaimer ? `
+                              <div style="position: absolute; bottom: 0; left: 0; right: 0; background-color: #f1f5f9; border-top: 1px solid #e2e8f0; padding: 10px 16px; z-index: 30; box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.01); transform: translate(${positions.disclaimerBlock.x}px, ${positions.disclaimerBlock.y}px);">
+                                <p style="font-size: 8px; color: #1e293b; text-align: center; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 900; margin: 0; line-height: 1.35;">
+                                  ${cardDisclaimerText}
+                                </p>
+                              </div>
+                            ` : ''}
+                          `;
+
+                          printGroup.appendChild(backCard);
+
+                          // Run HTML2Canvas for BACK
+                          const backCanvas = await html2canvas(backCard, { scale: 3, useCORS: true });
+                          const backImgData = backCanvas.toDataURL('image/png');
+                          pdf.addImage(backImgData, 'PNG', 0, 0, 100.6, 70.98);
+
+                          pdf.save(`ID-Card-${selectedPerson.idNo || 'student'}.pdf`);
+                          setToastText('Student ID export downloaded successfully!');
+                        } catch (err) {
+                          console.error('Failed to compile PDF:', err);
+                          setToastText('Failed to compile PDF. Check browser developer console.');
+                        } finally {
+                          document.body.removeChild(printGroup);
+                          setExporting(false);
+                          setTimeout(() => setToastText(''), 2500);
+                        }
+                      });
                     }}
                     disabled={exporting}
                     className="flex items-center justify-center gap-1.5 py-3 px-4 bg-[#1e40af] hover:bg-[#1e3a8a] text-white font-extrabold text-xs rounded-2xl shadow-sm transition-colors cursor-pointer min-h-[44px] border-none"
