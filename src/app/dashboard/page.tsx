@@ -34,7 +34,16 @@ export default function DashboardRouter() {
     setUserName(session.full_name || '');
     const ps = session.primary_school;
     if (ps?.name) {
-      setSchoolWelcome(ps.welcome_message || `Welcome to ${ps.name}`);
+      let welcomeStr = ps.welcome_message || '';
+      if (welcomeStr.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(welcomeStr);
+          welcomeStr = parsed.welcomeText || parsed.welcome_message || `Welcome to ${ps.name}`;
+        } catch (e) {
+          welcomeStr = `Welcome to ${ps.name}`;
+        }
+      }
+      setSchoolWelcome(welcomeStr || `Welcome to ${ps.name}`);
     }
 
     const userRoles = [...new Set((session.roles || []).map((r: any) => r.role))] as string[];

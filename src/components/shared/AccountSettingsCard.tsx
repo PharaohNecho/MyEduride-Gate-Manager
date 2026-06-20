@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getSession, updateSession } from '@/lib/api';
+import { getSession, updateSession, fetchData } from '@/lib/api';
 import { StudentAvatar } from '@/components/shared/StudentAvatar';
 import { KeyRound, ShieldAlert, CheckCircle2, User, Sparkles } from 'lucide-react';
 
@@ -31,6 +31,25 @@ export function AccountSettingsCard({ onSuccess }: { onSuccess?: () => void }) {
       setFullName(activeSession.full_name || '');
       setTitle(activeSession.title || '');
       setPhotoUrl(activeSession.photo_url || null);
+
+      fetchData('get_current_profile').then(res => {
+        if (res && res.profile) {
+          const p = res.profile;
+          const updated = updateSession({
+            full_name: p.full_name || activeSession.full_name,
+            title: p.title || activeSession.title,
+            photo_url: p.photo_url || activeSession.photo_url
+          });
+          if (updated) {
+            setSession(updated);
+            setFullName(updated.full_name || '');
+            setTitle(updated.title || '');
+            setPhotoUrl(updated.photo_url || null);
+          }
+        }
+      }).catch(err => {
+        console.warn('Failed to fetch fresh user profile inside settings card:', err);
+      });
     }
   }, []);
 

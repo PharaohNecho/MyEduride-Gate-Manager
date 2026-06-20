@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getSession, fetchData, logout } from '@/lib/api';
+import { getSession, fetchData, logout, updateSession } from '@/lib/api';
 import { isSupabaseConfigured, createClient } from '@/lib/supabase/client';
 import { StudentAvatar } from '@/components/shared/StudentAvatar';
 import { todayInLagos, formatTimeLagos } from '@/lib/timezone';
@@ -115,15 +115,15 @@ export default function ParentDashboard() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Failed to update identity parameters.');
       setProfileSuccess('Profile parameters synced successfully.');
-      const updated = { 
-        ...session, 
+      const updated = updateSession({ 
         full_name: parentName, 
         title: parentTitle, 
-        photo_url: data.profile?.photo_url || session.photoUrl || session.photo_url 
-      };
-      localStorage.setItem('myeduride_session', JSON.stringify(updated));
-      setSession(updated);
-      setParentPhotoUrl(updated.photo_url);
+        photo_url: data.profile?.photo_url || session.photoUrl || session.photo_url || null
+      });
+      if (updated) {
+        setSession(updated);
+        setParentPhotoUrl(updated.photo_url);
+      }
       setPhotoBase64(null); // Clear after successfully uploaded
     } catch (err: any) {
       setProfileError(err.message || 'Error occurred.');
@@ -286,6 +286,26 @@ export default function ParentDashboard() {
 
     const connected = isSupabaseConfigured();
     setIsDbConnected(connected);
+
+    // Fetch fresh profile from database/sandbox on mount
+    fetchData('get_current_profile').then(res => {
+      if (res && res.profile) {
+        const p = res.profile;
+        const updated = updateSession({
+          full_name: p.full_name || session.full_name,
+          title: p.title || session.title,
+          photo_url: p.photo_url || session.photo_url
+        });
+        if (updated) {
+          setSession(updated);
+          setParentName(updated.full_name || 'doe');
+          setParentTitle(updated.title || 'Guardian');
+          setParentPhotoUrl(updated.photo_url || null);
+        }
+      }
+    }).catch(err => {
+      console.warn('Failed to fetch fresh profile from DB on mount:', err);
+    });
 
     // Initial default pickup persons list
     const savedLocalPickups = localStorage.getItem('myeduride_local_dismissals');
@@ -847,9 +867,17 @@ export default function ParentDashboard() {
 
             {/* Logged in Parent User Badge layout */}
             <div className="bg-slate-50/70 border border-slate-100 rounded-2xl p-4.5 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shadow-sm uppercase shrink-0">
-                {parentInitials}
-              </div>
+              {parentPhotoUrl ? (
+                <img
+                  src={parentPhotoUrl}
+                  alt={parentName}
+                  className="w-10 h-10 rounded-full object-cover shadow-sm shrink-0 border border-emerald-500/10"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shadow-sm uppercase shrink-0">
+                  {parentInitials}
+                </div>
+              )}
               <div className="min-w-0">
                 <span className="text-[9px] font-bold text-slate-400 block uppercase tracking-wider leading-none">AUTHORIZED GUARDIAN</span>
                 <h3 className="text-sm font-black text-slate-800 tracking-tight truncate mt-1">
@@ -974,9 +1002,17 @@ export default function ParentDashboard() {
                   className="flex items-center gap-2.5 bg-slate-50/70 border border-slate-200/50 rounded-xl px-3 py-1.8 cursor-pointer hover:bg-slate-100/70 transition-all shadow-3xs hover:border-slate-300"
                   title="Account Settings & Reset Password"
                 >
-                  <div className="w-6.5 h-6.5 rounded-full bg-emerald-600 text-white font-extrabold text-[10px] flex items-center justify-center uppercase shrink-0">
-                    {parentInitials}
-                  </div>
+                  {parentPhotoUrl ? (
+                    <img
+                      src={parentPhotoUrl}
+                      alt={parentName}
+                      className="w-6.5 h-6.5 rounded-full object-cover shrink-0 border border-emerald-500/10"
+                    />
+                  ) : (
+                    <div className="w-6.5 h-6.5 rounded-full bg-emerald-600 text-white font-extrabold text-[10px] flex items-center justify-center uppercase shrink-0">
+                      {parentInitials}
+                    </div>
+                  )}
                   <div className="text-left hidden lg:block select-none max-w-[120px]">
                     <h4 className="text-[10.5px] font-black text-slate-800 leading-none truncate">{parentName}</h4>
                     <span className="text-[8px] text-emerald-600 uppercase tracking-widest font-extrabold block mt-0.5 leading-none">Parent/Guardian</span>

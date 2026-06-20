@@ -30,12 +30,20 @@ export async function GET(request: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (!data) return NextResponse.json({ error: 'School not found' }, { status: 404 });
 
+    let parsedWelcomeStr = data.welcome_message;
+    if (parsedWelcomeStr && parsedWelcomeStr.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(parsedWelcomeStr);
+        parsedWelcomeStr = parsed.welcomeText || parsed.welcome_message || '';
+      } catch (e) {}
+    }
+
     return NextResponse.json({
       school: {
         id: data.id,
         name: data.name,
         logo_url: data.logo_url,
-        welcome_message: data.welcome_message,
+        welcome_message: parsedWelcomeStr,
       },
     });
   } catch (err: unknown) {

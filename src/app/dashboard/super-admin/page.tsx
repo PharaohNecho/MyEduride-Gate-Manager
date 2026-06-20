@@ -62,6 +62,8 @@ export default function SuperAdminDashboard() {
   const [userName, setUserName] = useState('Director of Gate Operations');
   const [userEmail, setUserEmail] = useState('superadmin@myeduride.com');
   const [userUsername, setUserUsername] = useState('superadmin');
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState('');
+  const [profilePhotoBase64, setProfilePhotoBase64] = useState('');
 
   // Sidebar controls
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
@@ -140,6 +142,7 @@ export default function SuperAdminDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
+  const [passwordsLimit, setPasswordsLimit] = useState<number | 'all'>(25);
   const [selectedSchoolId, setSelectedSchoolId] = useState<string>('sch-1');
   const [showPasswordMap, setShowPasswordMap] = useState<Record<string, boolean>>({});
 
@@ -339,8 +342,48 @@ export default function SuperAdminDashboard() {
 
   const templateLoadedRef = useRef(false);
 
-  // Load template from localStorage on mount
-  useEffect(() => {
+  const loadSchoolTemplate = async (schoolId: string) => {
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('myeduride_token') || '' : '';
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/data', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          action: 'get_school_template',
+          params: { school_id: schoolId }
+        })
+      });
+      const data = await res.json();
+      if (data && data.template) {
+        const t = data.template;
+        if (t.positions) setPositions(t.positions);
+        if (t.placeholderSizes) setPlaceholderSizes(t.placeholderSizes);
+        if (t.cardPrimaryColor) setCardPrimaryColor(t.cardPrimaryColor);
+        if (t.cardSecondaryColor) setCardSecondaryColor(t.cardSecondaryColor);
+        if (t.cardBgColor) setCardBgColor(t.cardBgColor);
+        if (t.cardFontFamily) setCardFontFamily(t.cardFontFamily);
+        if (t.cardLogoType) setCardLogoType(t.cardLogoType);
+        if (t.cardLayoutSide) setCardLayoutSide(t.cardLayoutSide);
+        if (t.customTitleText) setCustomTitleText(t.customTitleText);
+        if (t.cardDisclaimerText) setCardDisclaimerText(t.cardDisclaimerText);
+        if (t.cardReturnInstructions) setCardReturnInstructions(t.cardReturnInstructions);
+        if (t.cardShowPhoto !== undefined) setCardShowPhoto(t.cardShowPhoto);
+        if (t.cardShowQR !== undefined) setCardShowQR(t.cardShowQR);
+        if (t.cardShowBarcode !== undefined) setCardShowBarcode(t.cardShowBarcode);
+        if (t.cardShowLogo !== undefined) setCardShowLogo(t.cardShowLogo);
+        if (t.cardShowAddress !== undefined) setCardShowAddress(t.cardShowAddress);
+        if (t.cardShowSignature !== undefined) setCardShowSignature(t.cardShowSignature);
+        if (t.cardShowDisclaimer !== undefined) setCardShowDisclaimer(t.cardShowDisclaimer);
+        return;
+      }
+    } catch (e) {
+      console.error('Error loading template from database:', e);
+    }
+
+    // Fallback to localStorage on mount/failure
     try {
       const savedPositions = localStorage.getItem('myeduride_id_positions');
       if (savedPositions) {
@@ -403,7 +446,13 @@ export default function SuperAdminDashboard() {
     } finally {
       templateLoadedRef.current = true;
     }
-  }, []);
+  };
+
+  useEffect(() => {
+    if (selectedSchoolId) {
+      loadSchoolTemplate(selectedSchoolId);
+    }
+  }, [selectedSchoolId]);
 
   const [activeDrag, setActiveDrag] = useState<{
     elementId: string;
@@ -693,6 +742,7 @@ export default function SuperAdminDashboard() {
     if (s.full_name) setUserName(s.full_name);
     if (s.email) setUserEmail(s.email);
     if (s.username) setUserUsername(s.username);
+    if (s.photo_url) setProfilePhotoUrl(s.photo_url);
     
     setIsSuperAdmin(true);
     setSupabaseConfigured(isSupabaseConfigured());
@@ -961,8 +1011,24 @@ export default function SuperAdminDashboard() {
     }));
   };
 
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      setProfileError('Avatar image must be smaller than 2MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setProfilePhotoBase64(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Modify currently logged in admin user's details
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileError('');
     setProfileSuccess('');
@@ -977,17 +1043,63 @@ export default function SuperAdminDashboard() {
     }
 
     try {
+      let finalPhotoUrl = profilePhotoUrl;
+      let notePlaceholder = '';
+
+      const sessionObj = getSession();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (sessionObj) {
+        headers['x-myeduride-session'] = encodeURIComponent(JSON.stringify(sessionObj));
+      }
+
+      try {
+        const response = await fetch('/api/school-admin/users', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            username: userUsername,
+            full_name: userName,
+            email: userEmail,
+            photo_base64: profilePhotoBase64 || undefined
+          })
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (response.ok && data.success) {
+          if (data.profile?.photo_url) {
+            finalPhotoUrl = data.profile.photo_url;
+            setProfilePhotoUrl(data.profile.photo_url);
+            setProfilePhotoBase64('');
+          }
+          if (data.error_note) {
+            notePlaceholder = ' ' + data.error_note;
+          }
+        } else if (!response.ok) {
+          throw new Error(data.error || 'Server rejected profile sync.');
+        }
+      } catch (dbErr: any) {
+        console.warn('[super-admin handleSaveProfile] DB persistence failed:', dbErr.message);
+        if (profilePhotoBase64) {
+          finalPhotoUrl = profilePhotoBase64;
+          setProfilePhotoUrl(profilePhotoBase64);
+          setProfilePhotoBase64('');
+        }
+        notePlaceholder = ' (Local sandbox backup synced)';
+      }
+
       const updated = updateSession({
         full_name: userName,
         username: userUsername,
         email: userEmail,
+        photo_url: finalPhotoUrl
       });
 
       if (updated) {
-        setProfileSuccess('Profile successfully updated! System session re-initialized.');
+        setProfileSuccess('Profile successfully updated!' + notePlaceholder);
         showToast('Super Admin profile updated', 'success');
       } else {
-        setProfileError('Could not process profile updates. Please retry.');
+        setProfileError('Could not sync local session state.');
       }
     } catch (err: any) {
       setProfileError(err.message || 'Error occurred while saving profile settings.');
@@ -1180,9 +1292,17 @@ export default function SuperAdminDashboard() {
         {isSidebarExpanded && (
           <div className="p-4 border-t border-slate-800/50 text-left space-y-2.5 mx-2 bg-slate-900 rounded-2xl">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#fbbf24] to-[#f59e0b] text-slate-900 flex items-center justify-center text-xs font-black shrink-0 shadow-inner">
-                {initials}
-              </div>
+              {profilePhotoUrl ? (
+                <img 
+                  src={profilePhotoUrl} 
+                  alt={userName || 'Supervisor'} 
+                  className="w-8 h-8 rounded-full object-cover bg-slate-100 border border-slate-700 shrink-0" 
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#fbbf24] to-[#f59e0b] text-slate-900 flex items-center justify-center text-xs font-black shrink-0 shadow-inner">
+                  {initials}
+                </div>
+              )}
               <div className="min-w-0">
                 <p className="text-xs font-bold text-slate-200 truncate">{userName}</p>
                 <p className="text-[10px] text-slate-400 font-medium truncate">System Supervisor</p>
@@ -1247,11 +1367,19 @@ export default function SuperAdminDashboard() {
             {/* User credentials profile badge */}
             <button 
               onClick={() => setActiveTab('account')}
-              className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-50 hover:bg-[#1e3a8a]/5 border border-slate-100 hover:border-blue-300 shadow-xs transition-all text-left border-none cursor-pointer"
+              className="flex items-center gap-2 px-1.5 py-1 rounded-xl bg-slate-50 hover:bg-[#1e3a8a]/5 border border-slate-100 hover:border-blue-300 shadow-xs transition-all text-left border-none cursor-pointer"
             >
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-[#1e3a8a] to-[#3b82f6] flex items-center justify-center text-white text-xs font-bold leading-none select-none">
-                {initials}
-              </div>
+              {profilePhotoUrl ? (
+                <img 
+                  src={profilePhotoUrl} 
+                  alt={userName || 'Supervisor'} 
+                  className="w-7 h-7 rounded-lg object-cover bg-slate-100 border border-slate-200 shrink-0" 
+                />
+              ) : (
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-[#1e3a8a] to-[#3b82f6] flex items-center justify-center text-white text-xs font-bold leading-none select-none">
+                  {initials}
+                </div>
+              )}
               <div className="hidden sm:block">
                 <p className="text-[10px] font-extrabold text-slate-800 leading-none truncate max-w-[80px]">{userName || 'Supervisor'}</p>
                 <p className="text-[8px] font-semibold text-[#1e3a8a] mt-0.5">Edit Profile</p>
@@ -1658,12 +1786,13 @@ export default function SuperAdminDashboard() {
 
                 {/* Filters */}
                 <div className="bg-white p-4 rounded-2xl border border-slate-200/80 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 select-none">
-                  <div className="relative flex-1 max-w-sm">
+                  <div className="relative flex-1 max-w-xl">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
                       <Search size={13} />
                     </span>
                     <input
                       type="text"
+                      id="passwords-username-search-element"
                       placeholder="Search accounts, names, emails..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
@@ -1671,18 +1800,34 @@ export default function SuperAdminDashboard() {
                     />
                   </div>
 
-                  <select
-                    value={roleFilter}
-                    onChange={(e) => setRoleFilter(e.target.value)}
-                    className="px-3 py-1.8 bg-slate-50 border border-slate-200 text-xs rounded-xl focus:outline-none focus:border-slate-300 font-bold text-slate-600 shrink-0"
-                  >
-                    <option value="all">🛡️ All Platform Roles</option>
-                    <option value="super_admin">⚡ Super Admins</option>
-                    <option value="school_admin">🏛️ School Admins</option>
-                    <option value="teacher">🍎 Teachers</option>
-                    <option value="gate_officer">🚪 Gate Officers</option>
-                    <option value="parent">🏡 Parents</option>
-                  </select>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-slate-450 text-[11px] font-extrabold uppercase tracking-tight">Show:</span>
+                      <select
+                        value={passwordsLimit}
+                        onChange={(e) => setPasswordsLimit(e.target.value === 'all' ? 'all' : parseInt(e.target.value))}
+                        className="px-3 py-1.8 bg-slate-50 border border-slate-200 text-xs rounded-xl focus:outline-none focus:border-slate-300 font-bold text-slate-600 cursor-pointer"
+                      >
+                        <option value={25}>25 accounts</option>
+                        <option value={50}>50 accounts</option>
+                        <option value={100}>100 accounts</option>
+                        <option value="all">🔄 View All</option>
+                      </select>
+                    </div>
+
+                    <select
+                      value={roleFilter}
+                      onChange={(e) => setRoleFilter(e.target.value)}
+                      className="px-3 py-1.8 bg-slate-50 border border-slate-200 text-xs rounded-xl focus:outline-none focus:border-slate-300 font-bold text-slate-600 shrink-0"
+                    >
+                      <option value="all">🛡️ All Platform Roles</option>
+                      <option value="super_admin">⚡ Super Admins</option>
+                      <option value="school_admin">🏛️ School Admins</option>
+                      <option value="teacher">🍎 Teachers</option>
+                      <option value="gate_officer">🚪 Gate Officers</option>
+                      <option value="parent">🏡 Parents</option>
+                    </select>
+                  </div>
                 </div>
 
                 {/* Table representation */}
@@ -1694,66 +1839,84 @@ export default function SuperAdminDashboard() {
                       <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">None of the credentials matches the select filter parameters.</p>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs border-collapse">
-                        <thead>
-                          <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 font-extrabold uppercase tracking-wider select-none">
-                            <th className="py-3 px-4">Operator Detail</th>
-                            <th className="py-3 px-4">Username</th>
-                            <th className="py-3 px-4">Roles Platform</th>
-                            <th className="py-3 px-4">Corporate Email</th>
-                            <th className="py-3 px-4 text-right">Bootstrap Key Passcode</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                          {filteredUsers.map((user) => {
-                            const isRevealed = showPasswordMap[user.id];
-                            return (
-                              <tr key={user.id} className="hover:bg-slate-50/50 transition-colors">
-                                <td className="py-3.5 px-4">
-                                  <div className="font-extrabold text-slate-900">{user.full_name || 'MyEduRide User'}</div>
-                                  <div className="text-[9.5px] text-slate-400 font-mono mt-0.5">UID: {user.id}</div>
-                                </td>
-                                <td className="py-3.5 px-4 font-mono font-bold text-[#1e40af]">{user.username}</td>
-                                <td className="py-3.5 px-4">
-                                  <div className="flex flex-wrap gap-1">
-                                    {user.roles.map((r: string) => {
-                                      let clr = 'bg-slate-100 text-slate-600 border-slate-200';
-                                      if (r === 'super_admin') clr = 'bg-teal-50 text-teal-700 border-teal-100';
-                                      if (r === 'school_admin') clr = 'bg-indigo-50 text-indigo-700 border-indigo-100';
-                                      if (r === 'teacher') clr = 'bg-sky-50 text-sky-700 border-sky-100';
-                                      if (r === 'gate_officer') clr = 'bg-amber-50 text-amber-700 border-amber-100';
-                                      if (r === 'parent') clr = 'bg-purple-50 text-purple-700 border-purple-100';
+                    <>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 font-extrabold uppercase tracking-wider select-none">
+                              <th className="py-3 px-4">Operator Detail</th>
+                              <th className="py-3 px-4">Username</th>
+                              <th className="py-3 px-4">Roles Platform</th>
+                              <th className="py-3 px-4">Corporate Email</th>
+                              <th className="py-3 px-4 text-right">Bootstrap Key Passcode</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                            {(() => {
+                              const paginated = passwordsLimit === 'all' ? filteredUsers : filteredUsers.slice(0, passwordsLimit);
+                              return paginated.map((user) => {
+                                const isRevealed = showPasswordMap[user.id];
+                                return (
+                                  <tr key={user.id} className="hover:bg-slate-50/50 transition-colors">
+                                    <td className="py-3.5 px-4">
+                                      <div className="font-extrabold text-slate-900">{user.full_name || 'MyEduRide User'}</div>
+                                      <div className="text-[9.5px] text-slate-400 font-mono mt-0.5">UID: {user.id}</div>
+                                    </td>
+                                    <td className="py-3.5 px-4 font-mono font-bold text-[#1e40af]">{user.username}</td>
+                                    <td className="py-3.5 px-4">
+                                      <div className="flex flex-wrap gap-1">
+                                        {user.roles.map((r: string) => {
+                                          let clr = 'bg-slate-100 text-slate-600 border-slate-200';
+                                          if (r === 'super_admin') clr = 'bg-teal-50 text-teal-700 border-teal-100';
+                                          if (r === 'school_admin') clr = 'bg-indigo-50 text-indigo-700 border-indigo-100';
+                                          if (r === 'teacher') clr = 'bg-sky-50 text-sky-700 border-sky-100';
+                                          if (r === 'gate_officer') clr = 'bg-amber-50 text-amber-700 border-amber-100';
+                                          if (r === 'parent') clr = 'bg-purple-50 text-purple-700 border-purple-100';
 
-                                      return (
-                                        <span key={r} className={`text-[9.5px] font-black uppercase px-2 py-0.5 rounded border tracking-wide block ${clr}`}>
-                                          {r.replace('_', ' ')}
+                                          return (
+                                            <span key={r} className={`text-[9.5px] font-black uppercase px-2 py-0.5 rounded border tracking-wide block ${clr}`}>
+                                              {r.replace('_', ' ')}
+                                            </span>
+                                          );
+                                        })}
+                                      </div>
+                                    </td>
+                                    <td className="py-3.5 px-4 font-mono text-slate-500">{user.email || 'unset@myeduride.com'}</td>
+                                    <td className="py-3.5 px-4 text-right">
+                                      <div className="inline-flex items-center gap-1.5 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+                                        <span className="font-mono text-xs text-slate-600 px-1 font-bold select-all leading-none">
+                                          {isRevealed ? (user.password || 'eduride-1090') : '••••••••'}
                                         </span>
-                                      );
-                                    })}
-                                  </div>
-                                </td>
-                                <td className="py-3.5 px-4 font-mono text-slate-500">{user.email || 'unset@myeduride.com'}</td>
-                                <td className="py-3.5 px-4 text-right">
-                                  <div className="inline-flex items-center gap-1.5 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
-                                    <span className="font-mono text-xs text-slate-600 px-1 font-bold select-all leading-none">
-                                      {isRevealed ? (user.password || 'eduride-1090') : '••••••••'}
-                                    </span>
-                                    <button
-                                      onClick={() => togglePasswordVisibility(user.id)}
-                                      className="p-1 rounded bg-white text-slate-400 hover:text-slate-800 transition shadow-xs cursor-pointer border-none"
-                                      title={isRevealed ? 'Hide Password' : 'Reveal system credential'}
-                                    >
-                                      {isRevealed ? <EyeOff size={11} /> : <Eye size={11} />}
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
+                                        <button
+                                          onClick={() => togglePasswordVisibility(user.id)}
+                                          className="p-1 rounded bg-white text-slate-400 hover:text-slate-800 transition shadow-xs cursor-pointer border-none"
+                                          title={isRevealed ? 'Hide Password' : 'Reveal system credential'}
+                                        >
+                                          {isRevealed ? <EyeOff size={11} /> : <Eye size={11} />}
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              });
+                            })()}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="bg-slate-50/80 px-4 py-3 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between font-bold select-none">
+                        <span>
+                          Showing {Math.min(filteredUsers.length, passwordsLimit === 'all' ? filteredUsers.length : passwordsLimit)} of {filteredUsers.length} platform users found
+                        </span>
+                        {passwordsLimit !== 'all' && filteredUsers.length > passwordsLimit && (
+                          <button
+                            onClick={() => setPasswordsLimit('all')}
+                            className="text-indigo-600 hover:text-indigo-800 bg-transparent border-none cursor-pointer text-[11px] font-extrabold uppercase tracking-wider"
+                          >
+                            Show All {filteredUsers.length} accounts
+                          </button>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               </motion.div>
@@ -3473,6 +3636,56 @@ export default function SuperAdminDashboard() {
                         </div>
                       )}
 
+                      {/* Profile Photo Area */}
+                      <div className="flex flex-col sm:flex-row items-center gap-5 p-4 bg-slate-50/50 rounded-2xl border border-slate-100 mb-4 text-left w-full">
+                        <div className="relative shrink-0 select-none group">
+                          {profilePhotoBase64 || profilePhotoUrl ? (
+                            <img 
+                              src={profilePhotoBase64 || profilePhotoUrl} 
+                              alt="Super Admin Avatar" 
+                              className="w-16 h-16 rounded-full object-cover border-2 border-emerald-400 shadow-md bg-slate-100"
+                            />
+                          ) : (
+                            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-[#1e3a8a] to-[#3b82f6] flex items-center justify-center text-white text-lg font-black shadow-md">
+                              {initials}
+                            </div>
+                          )}
+                          
+                          {(profilePhotoBase64 || profilePhotoUrl) && (
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                setProfilePhotoUrl('');
+                                setProfilePhotoBase64('');
+                              }}
+                              className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-rose-500 text-white flex items-center justify-center hover:bg-rose-600 transition-colors cursor-pointer border-none shadow-sm text-xs"
+                              title="Remove Photo"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="space-y-1.5 flex-1 text-center sm:text-left">
+                          <p className="text-xs font-extrabold text-slate-700">Platform Identity Profile Photo</p>
+                          <p className="text-[10px] text-slate-400">Select a high-resolution gate coordinator portrait (JPG/PNG, Max 2MB).</p>
+                          <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start">
+                            <label className="px-3.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-700 text-[10px] font-extrabold rounded-lg cursor-pointer transition-colors shadow-xs active:scale-95 inline-block">
+                              <span>Choose photo file</span>
+                              <input 
+                                type="file" 
+                                accept="image/png, image/jpeg, image/jpg" 
+                                onChange={handlePhotoSelect} 
+                                className="hidden" 
+                              />
+                            </label>
+                            {profilePhotoBase64 && (
+                              <span className="text-[9px] uppercase font-bold text-amber-600 animate-pulse">Photo update temporary (Save profile to write to database)</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
                       <div className="space-y-3.5 text-left">
                         <div>
                           <label className="text-[10px] uppercase font-extrabold text-slate-400 block mb-1">Supervisor Full Name</label>
@@ -4326,7 +4539,28 @@ export default function SuperAdminDashboard() {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
+                      const tConfig = {
+                        positions,
+                        placeholderSizes,
+                        cardPrimaryColor,
+                        cardSecondaryColor,
+                        cardBgColor,
+                        cardFontFamily,
+                        cardLogoType,
+                        cardLayoutSide,
+                        customTitleText,
+                        cardDisclaimerText,
+                        cardReturnInstructions,
+                        cardShowPhoto,
+                        cardShowQR,
+                        cardShowBarcode,
+                        cardShowLogo,
+                        cardShowAddress,
+                        cardShowSignature,
+                        cardShowDisclaimer
+                      };
+
                       try {
                         localStorage.setItem('myeduride_id_positions', JSON.stringify(positions));
                         localStorage.setItem('myeduride_id_sizes', JSON.stringify(placeholderSizes));
@@ -4348,10 +4582,33 @@ export default function SuperAdminDashboard() {
                         localStorage.setItem('myeduride_card_show_address', String(cardShowAddress));
                         localStorage.setItem('myeduride_card_show_signature', String(cardShowSignature));
                         localStorage.setItem('myeduride_card_show_disclaimer', String(cardShowDisclaimer));
+                      } catch (e) {}
 
-                        showToast('ID Template Layout, Colors, Texts, and Visibilities successfully saved!', 'success');
-                      } catch (e) {
-                        showToast('Error saving template to disk.', 'error');
+                      try {
+                        const token = localStorage.getItem('myeduride_token') || '';
+                        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+                        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+                        const res = await fetch('/api/data', {
+                          method: 'POST',
+                          headers,
+                          body: JSON.stringify({
+                            action: 'save_school_template',
+                            params: {
+                              school_id: selectedSchoolId,
+                              template: tConfig
+                            }
+                          })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                          showToast('ID Template Layout & Visibilities successfully defined on DB!', 'success');
+                        } else {
+                          showToast('Saved locally, but DB sync returned: ' + (data.error || 'unknown error'), 'warning');
+                        }
+                      } catch (e: any) {
+                        console.error('Error saving template to DB:', e);
+                        showToast('Saved locally, but failed to synchronize with database.', 'warning');
                       }
                       setIsTemplateEditorOpen(false);
                     }}

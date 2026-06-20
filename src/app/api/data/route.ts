@@ -161,6 +161,26 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({
             success: true
           });
+        case 'get_current_profile':
+          return NextResponse.json({
+            profile: {
+              id: session.user_id,
+              username: session.username,
+              full_name: session.full_name,
+              email: session.email,
+              title: session.title || 'Guardian',
+              photo_url: session.photo_url || null,
+            }
+          });
+        case 'save_school_template':
+          return NextResponse.json({
+            success: true
+          });
+        case 'get_school_template':
+          return NextResponse.json({
+            success: true,
+            template: null
+          });
         default:
           return NextResponse.json({ error: 'Sandbox Mode: Action not simulated' }, { status: 400 });
       }
@@ -696,23 +716,30 @@ export async function POST(request: NextRequest) {
               </div>
             `;
 
-            try {
-              await resend.emails.send({
-                from: `${schoolName} via MyEduRide <noreply@assetid.site>`,
-                to: Array.from(emailsToNotify),
-                subject: `Pickup Authorization registered for ${studentName}`,
-                html: emailHtml,
-              });
-              emailSent = true;
-            } catch (domainErr: any) {
-              console.warn('[create_dismissal_request] Primary email Domain failed, retrying via onboarding@resend.dev:', domainErr?.message || domainErr);
-              await resend.emails.send({
-                from: 'MyEduRide Gate <onboarding@resend.dev>',
-                to: Array.from(emailsToNotify),
-                subject: `Pickup Authorization registered for ${studentName}`,
-                html: emailHtml,
-              });
-              emailSent = true;
+            const recipientList = Array.from(emailsToNotify) as string[];
+            for (const recipient of recipientList) {
+              try {
+                await resend.emails.send({
+                  from: `${schoolName} via MyEduRide <noreply@assetid.site>`,
+                  to: recipient,
+                  subject: `Pickup Authorization registered for ${studentName}`,
+                  html: emailHtml,
+                });
+                emailSent = true;
+              } catch (domainErr: any) {
+                console.warn(`[create_dismissal_request] Primary email domain failed for ${recipient}, retrying via onboarding@resend.dev:`, domainErr?.message || domainErr);
+                try {
+                  await resend.emails.send({
+                    from: 'MyEduRide Gate <onboarding@resend.dev>',
+                    to: recipient,
+                    subject: `Pickup Authorization registered for ${studentName}`,
+                    html: emailHtml,
+                  });
+                  emailSent = true;
+                } catch (fallbackErr: any) {
+                  console.error(`[create_dismissal_request] Direct fallback sending failed for ${recipient}:`, fallbackErr?.message || fallbackErr);
+                }
+              }
             }
           } catch (emailErr) {
             console.error('[create_dismissal_request] Resend Email error:', emailErr);
@@ -908,7 +935,27 @@ export async function POST(request: NextRequest) {
 
           const schoolId = student.school_id || 'demo-school-id';
 
-          // 2. Insert attendance record
+          // 2. Double Scan Check (Single check-in and check-out per school day)
+          const dateStr = scanTime.substring(0, 10);
+          const startOfDay = `${dateStr}T00:00:00.000Z`;
+          const endOfDay = `${dateStr}T23:59:59.999Z`;
+
+          const { data: existingStudentRecords } = await supabase
+            .from('attendance_records')
+            .select('id')
+            .eq('student_id', student_id)
+            .eq('type', scanType)
+            .gte('timestamp', startOfDay)
+            .lte('timestamp', endOfDay);
+
+          if (existingStudentRecords && existingStudentRecords.length > 0) {
+            return NextResponse.json({ 
+              error: 'DOUBLE_SCAN', 
+              message: `Double verification block: Scholar ${student.first_name} has already logged a standard ${scanType === 'arrival' ? 'check-in' : 'check-out'} gate scan today.` 
+            }, { status: 400 });
+          }
+
+          // 3. Insert attendance record
           const { data: insertedRecord, error: insertErr } = await supabase
             .from('attendance_records')
             .insert({
@@ -964,6 +1011,26 @@ export async function POST(request: NextRequest) {
           const schoolId = staffRole?.school_id || 'demo-school-id';
           const staffName = staffProfile?.full_name || 'Staff User';
           const staffEmail = staffProfile?.email;
+
+          // 1.5. Double Scan Check (Single sign-in and sign-out per school day)
+          const dateStr = scanTime.substring(0, 10);
+          const startOfDay = `${dateStr}T00:00:00.000Z`;
+          const endOfDay = `${dateStr}T23:59:59.999Z`;
+
+          const { data: existingStaffRecords } = await supabase
+            .from('attendance_records')
+            .select('id')
+            .eq('source', `staff_id:${staff_id}`)
+            .eq('type', scanType)
+            .gte('timestamp', startOfDay)
+            .lte('timestamp', endOfDay);
+
+          if (existingStaffRecords && existingStaffRecords.length > 0) {
+            return NextResponse.json({ 
+              error: 'DOUBLE_SCAN', 
+              message: `Double verification block: Staff member ${staffName} has already logged a standard ${scanType === 'arrival' ? 'sign-in' : 'sign-out'} gate scan today.` 
+            }, { status: 400 });
+          }
 
           // 2. Create attendance entry
           const { data: insertedRecord, error: insertErr } = await supabase
@@ -1059,6 +1126,90 @@ export async function POST(request: NextRequest) {
             staff_email_sent: staffEmailSent 
           });
         }
+      }
+
+      case 'get_current_profile': {
+        const { data: profile, error } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', session.user_id)
+          .maybeSingle();
+
+        if (error) {
+          console.error('[DATA API] Error fetching current user profile:', error);
+          return NextResponse.json({ error: error.message }, { status: 500 });
+        }
+
+        return NextResponse.json({ profile });
+      }
+
+      case 'save_school_template': {
+        const schoolId = params?.school_id;
+        const template = params?.template;
+        if (!schoolId) {
+          return NextResponse.json({ error: 'school_id required' }, { status: 400 });
+        }
+        const { data: currentSchool } = await supabase
+          .from('schools')
+          .select('welcome_message')
+          .eq('id', schoolId)
+          .maybeSingle();
+
+        let welcomeText = 'Welcome to our school';
+        if (currentSchool?.welcome_message) {
+          if (currentSchool.welcome_message.startsWith('{')) {
+            try {
+              const parsed = JSON.parse(currentSchool.welcome_message);
+              welcomeText = parsed.welcomeText || parsed.welcome_message || 'Welcome to our school';
+            } catch (e) {}
+          } else {
+            welcomeText = currentSchool.welcome_message;
+          }
+        }
+
+        const newWelcomeMessage = JSON.stringify({
+          is_config: true,
+          welcomeText: welcomeText,
+          template: template
+        });
+
+        const { error: updateErr } = await supabase
+          .from('schools')
+          .update({ welcome_message: newWelcomeMessage })
+          .eq('id', schoolId);
+
+        if (updateErr) {
+          console.error('[DATA API] Error saving template:', updateErr.message);
+          return NextResponse.json({ error: updateErr.message }, { status: 500 });
+        }
+
+        return NextResponse.json({ success: true });
+      }
+
+      case 'get_school_template': {
+        const schoolId = params?.school_id;
+        if (!schoolId) {
+          return NextResponse.json({ error: 'school_id required' }, { status: 400 });
+        }
+        const { data: school, error } = await supabase
+          .from('schools')
+          .select('welcome_message')
+          .eq('id', schoolId)
+          .maybeSingle();
+
+        if (error) {
+          return NextResponse.json({ error: error.message }, { status: 500 });
+        }
+
+        let template = null;
+        if (school?.welcome_message && school.welcome_message.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(school.welcome_message);
+            template = parsed.template;
+          } catch (e) {}
+        }
+
+        return NextResponse.json({ template });
       }
 
       default:

@@ -337,11 +337,18 @@ export async function POST(request: NextRequest) {
         .eq('id', schoolRole.school_id)
         .maybeSingle();
       if (school) {
+        let parsedWelcomeStr = school.welcome_message;
+        if (parsedWelcomeStr && parsedWelcomeStr.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(parsedWelcomeStr);
+            parsedWelcomeStr = parsed.welcomeText || parsed.welcome_message || '';
+          } catch (e) {}
+        }
         primarySchool = {
           id: school.id,
           name: school.name,
           logo_url: school.logo_url,
-          welcome_message: school.welcome_message,
+          welcome_message: parsedWelcomeStr,
         };
       }
     }

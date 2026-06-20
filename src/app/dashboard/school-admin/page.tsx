@@ -478,9 +478,7 @@ export default function SchoolAdminDashboard() {
     reader.readAsDataURL(file);
   };
 
-  const handleSuccessfulQRDecode = (decodedData: string) => {
-    playGateBeep();
-
+  const handleSuccessfulQRDecode = async (decodedData: string) => {
     // If decodedData is a verification URL, extract the actual student Id or staff Id.
     let lookupId = decodedData;
     if (decodedData && (decodedData.startsWith('http://') || decodedData.startsWith('https://') || decodedData.includes('/verify/'))) {
@@ -513,149 +511,191 @@ export default function SchoolAdminDashboard() {
 
     if (studentMatch) {
       const scanDirection = studentScanDirection || 'in';
-      const updatedStatus = scanDirection === 'in' ? 'present' : 'absent';
-      
-      // 1. Update students status in local state
-      setStudents(prev => prev.map(item => item.id === studentMatch.id ? { ...item, status: updatedStatus } : item));
-
-      // 2. Prepend log to activity feed / dashboard
       const transType = scanDirection === 'in' ? 'arrival' : 'departure';
-      const recordId = 'scan-rec-' + Date.now();
-      const newRecord = {
-        id: recordId,
-        student_id: studentMatch.id,
-        type: transType,
-        status: transType === 'arrival' ? 'on_time' : 'normal',
-        timestamp: new Date().toISOString(),
-        student: {
-          first_name: studentMatch.first_name,
-          last_name: studentMatch.last_name,
-          photo_url: studentMatch.photo_url,
-          student_id_number: studentMatch.id
-        }
-      };
-      setRecentActivity(prev => [newRecord, ...prev]);
 
-      // 3. Update the corresponding dashboard Stats counts dynamically
-      setStats(prev => {
-        const updated = { ...prev };
-        if (transType === 'arrival') {
-          updated.present_today = (updated.present_today || 0) + 1;
-          if (updated.absent_today && updated.absent_today > 0) {
-            updated.absent_today = updated.absent_today - 1;
-          }
-        } else {
-          updated.absent_today = (updated.absent_today || 0) + 1;
-          if (updated.present_today && updated.present_today > 0) {
-            updated.present_today = updated.present_today - 1;
-          }
-        }
-        return updated;
-      });
+      setToastText(`Verifying Scholar ${studentMatch.first_name}...`);
 
-      const logMsg = `Gate Scan Verified: Scholar ${studentMatch.first_name} ${studentMatch.last_name}`;
-      const newLog = {
-        id: Date.now().toString(),
-        action: logMsg,
-        user: "Terminal QR Scanner Alpha",
-        target: scanDirection === 'in' ? 'Check In / Arrival' : 'Check Out / Departure',
-        status: 'success',
-        timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19)
-      };
-      setSystemLogs(prev => [newLog, ...prev]);
-      
-      setScannedResultPayload({
-        type: 'student',
-        record: studentMatch,
-        direction: scanDirection,
-        timestamp: newLog.timestamp
-      });
-      
-      setToastText(`Gate access cleared! Welcome ${studentMatch.first_name}`);
-
-      // Sync scan to backend DB & dispatch emails
-      fetch('/api/data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'record_attendance_scan',
-          params: {
-            student_id: studentMatch.id,
-            type: scanDirection === 'in' ? 'arrival' : 'departure',
-            status: 'normal',
-            timestamp: new Date().toISOString()
-          }
-        })
-      })
-        .then(res => res.json())
-        .then((data) => {
-          console.log('[Real Camera Scan Synced student]:', data);
-        })
-        .catch((err) => {
-          console.error('[Real Camera Scan Sync error student]:', err);
+      try {
+        const response = await fetch('/api/data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'record_attendance_scan',
+            params: {
+              student_id: studentMatch.id,
+              type: transType,
+              status: 'normal',
+              timestamp: new Date().toISOString()
+            }
+          })
         });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok || data.error) {
+          const errMsg = data.message || data.error || 'Verification rejected';
+          setToastText(`Scan blocked! Double check-in/out protection active.`);
+          playGateBeep(220, 0.45); // Warning buzzer
+
+          const warningLog = {
+            id: Date.now().toString(),
+            action: `Access BLOCKED: Scholar ${studentMatch.first_name} ${studentMatch.last_name}`,
+            user: "Duplication Shield",
+            target: errMsg,
+            status: 'warning',
+            timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19)
+          };
+          setSystemLogs(prev => [warningLog, ...prev]);
+          return;
+        }
+
+        // Success: Execute state adjustments and chime confirmation
+        playGateBeep();
+        const updatedStatus = scanDirection === 'in' ? 'present' : 'absent';
+        
+        setStudents(prev => prev.map(item => item.id === studentMatch.id ? { ...item, status: updatedStatus } : item));
+
+        const recordId = data.record?.id || 'scan-rec-' + Date.now();
+        const newRecord = {
+          id: recordId,
+          student_id: studentMatch.id,
+          type: transType,
+          status: transType === 'arrival' ? 'on_time' : 'normal',
+          timestamp: new Date().toISOString(),
+          student: {
+            first_name: studentMatch.first_name,
+            last_name: studentMatch.last_name,
+            photo_url: studentMatch.photo_url,
+            student_id_number: studentMatch.id
+          }
+        };
+        setRecentActivity(prev => [newRecord, ...prev]);
+
+        setStats(prev => {
+          const updated = { ...prev };
+          if (transType === 'arrival') {
+            updated.present_today = (updated.present_today || 0) + 1;
+            if (updated.absent_today && updated.absent_today > 0) {
+              updated.absent_today = updated.absent_today - 1;
+            }
+          } else {
+            updated.absent_today = (updated.absent_today || 0) + 1;
+            if (updated.present_today && updated.present_today > 0) {
+              updated.present_today = updated.present_today - 1;
+            }
+          }
+          return updated;
+        });
+
+        const logMsg = `Gate Scan Verified: Scholar ${studentMatch.first_name} ${studentMatch.last_name}`;
+        const newLog = {
+          id: Date.now().toString(),
+          action: logMsg,
+          user: "Terminal QR Scanner Alpha",
+          target: scanDirection === 'in' ? 'Check In / Arrival' : 'Check Out / Departure',
+          status: 'success',
+          timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19)
+        };
+        setSystemLogs(prev => [newLog, ...prev]);
+        
+        setScannedResultPayload({
+          type: 'student',
+          record: studentMatch,
+          direction: scanDirection,
+          timestamp: newLog.timestamp
+        });
+        
+        setToastText(`Gate access cleared! Welcome ${studentMatch.first_name}`);
+
+      } catch (err: any) {
+        console.error('[Scan Synced Student exceptions]:', err);
+        setToastText("Network sync error during scan. Try again.");
+        playGateBeep(220, 0.45);
+      }
 
     } else if (staffMatch) {
       const scanDirection = staffScanDirection || 'in';
-      
-      const logMsg = `Gate Scan Verified: Staff ${staffMatch.name} (${staffMatch.role})`;
-      const newLog = {
-        id: Date.now().toString(),
-        action: logMsg,
-        user: "Terminal QR Scanner Alpha",
-        target: scanDirection === 'in' ? 'Gateway Entry Approved' : 'Gateway Exit Cleared',
-        status: 'success',
-        timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19)
-      };
-      setSystemLogs(prev => [newLog, ...prev]);
-
-      setScannedResultPayload({
-        type: 'staff',
-        record: staffMatch,
-        direction: scanDirection,
-        timestamp: newLog.timestamp
-      });
-      
       const transType = scanDirection === 'in' ? 'arrival' : 'departure';
-      const recordId = 'scan-rec-' + Date.now();
-      const newRecord: any = {
-        id: recordId,
-        staff_id: staffMatch.id,
-        type: transType,
-        status: 'normal',
-        timestamp: new Date().toISOString(),
-        staff: {
-          name: staffMatch.name,
-          role: staffMatch.role,
-          id: staffMatch.id,
-          photo_url: staffMatch.photo_url || null
-        }
-      };
-      setRecentActivity((prev: any) => [newRecord, ...prev]);
-      
-      setToastText(`Gate access cleared! Hello ${staffMatch.name}`);
 
-      // Sync scan to backend DB & dispatch emails
-      fetch('/api/data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'record_attendance_scan',
-          params: {
-            staff_id: staffMatch.id,
-            type: scanDirection === 'in' ? 'arrival' : 'departure',
-            status: 'normal',
-            timestamp: new Date().toISOString()
-          }
-        })
-      })
-        .then(res => res.json())
-        .then((data) => {
-          console.log('[Real Camera Scan Synced staff]:', data);
-        })
-        .catch((err) => {
-          console.error('[Real Camera Scan Sync error staff]:', err);
+      setToastText(`Verifying Staff ${staffMatch.name || staffMatch.full_name}...`);
+
+      try {
+        const response = await fetch('/api/data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'record_attendance_scan',
+            params: {
+              staff_id: staffMatch.id,
+              type: transType,
+              status: 'normal',
+              timestamp: new Date().toISOString()
+            }
+          })
         });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok || data.error) {
+          const errMsg = data.message || data.error || 'Verification rejected';
+          setToastText(`Scan blocked! Double check-in/out protection active.`);
+          playGateBeep(220, 0.45);
+
+          const warningLog = {
+            id: Date.now().toString(),
+            action: `Access BLOCKED: Staff ${staffMatch.name || staffMatch.full_name}`,
+            user: "Duplication Shield",
+            target: errMsg,
+            status: 'warning',
+            timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19)
+          };
+          setSystemLogs(prev => [warningLog, ...prev]);
+          return;
+        }
+
+        // Success
+        playGateBeep();
+        
+        const logMsg = `Gate Scan Verified: Staff ${staffMatch.name || staffMatch.full_name}`;
+        const newLog = {
+          id: Date.now().toString(),
+          action: logMsg,
+          user: "Terminal QR Scanner Alpha",
+          target: scanDirection === 'in' ? 'Gateway Entry Approved' : 'Gateway Exit Cleared',
+          status: 'success',
+          timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19)
+        };
+        setSystemLogs(prev => [newLog, ...prev]);
+
+        setScannedResultPayload({
+          type: 'staff',
+          record: staffMatch,
+          direction: scanDirection,
+          timestamp: newLog.timestamp
+        });
+        
+        const recordId = data.record?.id || 'scan-rec-' + Date.now();
+        const newRecord: any = {
+          id: recordId,
+          staff_id: staffMatch.id,
+          type: transType,
+          status: 'normal',
+          timestamp: new Date().toISOString(),
+          staff: {
+            name: staffMatch.name || staffMatch.full_name,
+            role: staffMatch.role,
+            id: staffMatch.id,
+            photo_url: staffMatch.photo_url || null
+          }
+        };
+        setRecentActivity((prev: any) => [newRecord, ...prev]);
+        setToastText(`Staff access cleared! Welcome ${staffMatch.name || staffMatch.full_name}`);
+
+      } catch (err: any) {
+        console.error('[Scan Synced Staff exceptions]:', err);
+        setToastText("Network sync error during scan. Try again.");
+        playGateBeep(220, 0.45);
+      }
     } else {
       // PLAY WARNING ALERT BUZZER
       playGateBeep(220, 0.45);
@@ -896,10 +936,40 @@ export default function SchoolAdminDashboard() {
   const loadDashboard = async () => {
     try {
       const dashboard = await fetchData('get_school_dashboard');
-      setSchoolId(dashboard.school_id || '');
+      const currentSchoolId = dashboard.school_id || '';
+      setSchoolId(currentSchoolId);
       setSchoolName(dashboard.school_name || dashboard.school?.name || '');
       setStats(dashboard);
       setRecentActivity(dashboard.recent_activity || []);
+
+      if (currentSchoolId) {
+        try {
+          const tRes = await fetchData('get_school_template', { school_id: currentSchoolId });
+          if (tRes && tRes.template) {
+            const t = tRes.template;
+            if (t.positions) setPositions(t.positions);
+            if (t.placeholderSizes) setPlaceholderSizes(t.placeholderSizes);
+            if (t.cardPrimaryColor) setCardPrimaryColor(t.cardPrimaryColor);
+            if (t.cardSecondaryColor) setCardSecondaryColor(t.cardSecondaryColor);
+            if (t.cardBgColor) setCardBgColor(t.cardBgColor);
+            if (t.cardFontFamily) setCardFontFamily(t.cardFontFamily);
+            if (t.cardLogoType) setCardLogoType(t.cardLogoType);
+            if (t.cardLayoutSide) setCardLayoutSide(t.cardLayoutSide);
+            if (t.customTitleText) setCustomTitleText(t.customTitleText);
+            if (t.cardDisclaimerText) setCardDisclaimerText(t.cardDisclaimerText);
+            if (t.cardReturnInstructions) setCardReturnInstructions(t.cardReturnInstructions);
+            if (t.cardShowPhoto !== undefined) setCardShowPhoto(t.cardShowPhoto);
+            if (t.cardShowQR !== undefined) setCardShowQR(t.cardShowQR);
+            if (t.cardShowBarcode !== undefined) setCardShowBarcode(t.cardShowBarcode);
+            if (t.cardShowLogo !== undefined) setCardShowLogo(t.cardShowLogo);
+            if (t.cardShowAddress !== undefined) setCardShowAddress(t.cardShowAddress);
+            if (t.cardShowSignature !== undefined) setCardShowSignature(t.cardShowSignature);
+            if (t.cardShowDisclaimer !== undefined) setCardShowDisclaimer(t.cardShowDisclaimer);
+          }
+        } catch (dbErr) {
+          console.error('Error loading template from DB:', dbErr);
+        }
+      }
     } catch (err) { 
       console.error(err); 
     }

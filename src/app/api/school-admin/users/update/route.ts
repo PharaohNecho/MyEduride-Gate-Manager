@@ -58,18 +58,18 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Profile identity validations
-    if (full_name !== undefined) {
+    if (full_name !== undefined && full_name !== null) {
       if (!full_name.trim()) {
         return NextResponse.json({ error: 'Full name cannot be empty' }, { status: 400 });
       }
       updates.full_name = full_name.trim();
     }
 
-    if (email !== undefined) {
+    if (email !== undefined && email !== null) {
       updates.email = email.trim();
     }
 
-    if (title !== undefined) {
+    if (title !== undefined && title !== null) {
       updates.title = title.trim();
     }
 
@@ -135,8 +135,8 @@ export async function POST(request: NextRequest) {
     // 5. Hard synchronization with standard Supabase Auth user metadata
     // This makes sure both the title, photo_url, and full_name are fully saved in auth JSON format
     const metaUpdates: Record<string, any> = {};
-    if (full_name !== undefined) metaUpdates.full_name = full_name.trim();
-    if (title !== undefined) metaUpdates.title = title.trim();
+    if (full_name !== undefined && full_name !== null) metaUpdates.full_name = full_name.trim();
+    if (title !== undefined && title !== null) metaUpdates.title = title.trim();
     if (finalPhotoUrl) metaUpdates.photo_url = finalPhotoUrl;
 
     const { error: authErr } = await supabase.auth.admin.updateUserById(targetUserId, {

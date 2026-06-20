@@ -63,12 +63,20 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ school: null, belongs_to_school: false });
       }
 
+      let parsedWelcomeStr = school.welcome_message;
+      if (parsedWelcomeStr && parsedWelcomeStr.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(parsedWelcomeStr);
+          parsedWelcomeStr = parsed.welcomeText || parsed.welcome_message || '';
+        } catch (e) {}
+      }
+
       return NextResponse.json({
         school: {
           id: school.id,
           name: school.name,
           logo_url: school.logo_url,
-          welcome_message: school.welcome_message,
+          welcome_message: parsedWelcomeStr,
         },
         belongs_to_school: true,
       });
@@ -95,12 +103,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ school: null, belongs_to_school: false });
     }
 
+    let parsedWelcomeStr = school.welcome_message;
+    if (parsedWelcomeStr && parsedWelcomeStr.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(parsedWelcomeStr);
+        parsedWelcomeStr = parsed.welcomeText || parsed.welcome_message || '';
+      } catch (e) {}
+    }
+
     return NextResponse.json({
       school: {
         id: school.id,
         name: school.name,
         logo_url: school.logo_url,
-        welcome_message: school.welcome_message,
+        welcome_message: parsedWelcomeStr,
       },
       belongs_to_school: true,
     });
