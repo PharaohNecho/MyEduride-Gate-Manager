@@ -73,6 +73,13 @@ export default function LoginPage() {
   const [currentSlide, setCurrentSlide] = useState(0);
 
   useEffect(() => {
+    // Vaporize legacy session and cookies on load to prevent stale state from hijacking the next login session
+    localStorage.removeItem('myeduride_session');
+    document.cookie = 'myeduride_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT;';
+    document.cookie = 'myeduride_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=None; Secure;';
+  }, []);
+
+  useEffect(() => {
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % CAROUSEL_SLIDES.length);
     }, 4500);
@@ -235,13 +242,13 @@ export default function LoginPage() {
         {/* Left Side: White Form Card Pane */}
         <div 
           id="login_form_pane" 
-          className="col-span-1 md:col-span-5 bg-white p-6 sm:p-8 flex flex-col justify-between relative shadow-2xl z-20 text-left"
+          className="col-span-1 md:col-span-5 bg-white dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800 p-6 sm:p-8 flex flex-col justify-between relative shadow-2xl z-20 text-left transition-colors"
         >
           <div className="space-y-6">
             {/* Top Logo Widget */}
             <div className="flex items-center justify-between">
               <div id="school_logo_box" className="flex items-center space-x-2.5">
-                <div className="relative w-10 h-10 flex items-center justify-center rounded-xl bg-gradient-to-tr from-[#0a1e36] to-[#04341b] p-1.5 shadow-md border border-slate-100 overflow-hidden">
+                <div className="relative w-10 h-10 flex items-center justify-center rounded-xl bg-gradient-to-tr from-[#0a1e36] to-[#04341b] p-1.5 shadow-md border border-slate-100 dark:border-slate-800 overflow-hidden">
                   <img 
                     src={logoSrc} 
                     alt={schoolBranding?.name || 'MyEduRide'} 
@@ -253,17 +260,17 @@ export default function LoginPage() {
                 </div>
                 <div className="leading-tight">
                   {schoolBranding?.name ? (
-                    <h2 className="text-xs font-extrabold text-slate-800 line-clamp-1">{schoolBranding.name}</h2>
+                    <h2 className="text-xs font-extrabold text-slate-800 dark:text-slate-100 line-clamp-1">{schoolBranding.name}</h2>
                   ) : (
-                    <h2 className="text-xs font-extrabold text-slate-800">MyEduRide Platform</h2>
+                    <h2 className="text-xs font-extrabold text-slate-800 dark:text-slate-100">MyEduRide Platform</h2>
                   )}
                 </div>
               </div>
             </div>
 
             <div>
-              <h1 id="welcome_back_title" className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight leading-none">Sign In Access</h1>
-              <p id="welcome_back_subtitle" className="text-xs text-slate-400 mt-1.5 font-medium leading-relaxed">
+              <h1 id="welcome_back_title" className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white tracking-tight leading-none">Sign In Access</h1>
+              <p id="welcome_back_subtitle" className="text-xs text-slate-400 dark:text-slate-400 mt-1.5 font-medium leading-relaxed">
                 {welcomeLine}
               </p>
             </div>
@@ -283,7 +290,7 @@ export default function LoginPage() {
               <div className="space-y-3.5">
                 {/* Username Input with clean styling */}
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Username *</label>
+                  <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">Username *</label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 pointer-events-none">
                       <User size={14} />
@@ -295,7 +302,7 @@ export default function LoginPage() {
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       placeholder="e.g. adaeze_admin"
-                      className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#0f3b25] focus:bg-white transition"
+                      className="w-full pl-9 pr-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-450 focus:outline-none focus:border-[#0f3b25] dark:focus:border-emerald-500 focus:bg-white dark:focus:bg-slate-900 transition"
                       autoFocus
                       autoComplete="username"
                     />
@@ -309,13 +316,13 @@ export default function LoginPage() {
                       <span>⚠️</span> {usernameHint}
                     </motion.p>
                   ) : (
-                    <p className="text-[9px] text-slate-400 pl-1 mt-1 font-medium select-none">Enter your username to dynamic-sync local school nodes.</p>
+                    <p className="text-[9px] text-slate-400 dark:text-slate-500 pl-1 mt-1 font-medium select-none">Enter your username to dynamic-sync local school nodes.</p>
                   )}
                 </div>
 
                 {/* Password Input with clean visibility toggle */}
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Password *</label>
+                  <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">Password *</label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 pointer-events-none">
                       <Lock size={14} />
@@ -327,12 +334,12 @@ export default function LoginPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Enter security key"
-                      className="w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#0f3b25] focus:bg-white transition"
+                      className="w-full pl-9 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-450 focus:outline-none focus:border-[#0f3b25] dark:focus:border-emerald-500 focus:bg-white dark:focus:bg-slate-900 transition"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition h-[34px] w-[34px] flex items-center justify-center z-10 focus:outline-none border-none bg-transparent cursor-pointer"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-650 transition h-[34px] w-[34px] flex items-center justify-center z-10 focus:outline-none border-none bg-transparent cursor-pointer"
                       title={showPassword ? "Hide password" : "Show password"}
                       aria-label={showPassword ? "Hide password" : "Show password"}
                     >
@@ -342,7 +349,7 @@ export default function LoginPage() {
                 </div>
 
                 <div className="flex justify-end pt-0.5">
-                  <span className="text-[11px] text-slate-400 font-bold hover:text-slate-500 cursor-not-allowed select-none">
+                  <span className="text-[11px] text-slate-400 dark:text-slate-500 font-bold hover:text-slate-500 cursor-not-allowed select-none">
                     Forgot Password?
                   </span>
                 </div>
@@ -372,14 +379,14 @@ export default function LoginPage() {
             </form>
           </div>
 
-          <div className="mt-8 pt-4 border-t border-slate-100 flex flex-col items-center gap-1.5 text-center">
-            <p className="text-[11px] text-slate-500 font-semibold uppercase">
+          <div className="mt-8 pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col items-center gap-1.5 text-center">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold uppercase">
               New School Platform?{' '}
-              <a href="/auth/register-school" className="text-[#0d5c2e] hover:underline font-extrabold underline-offset-2">
+              <a href="/auth/register-school" className="text-[#0d5c2e] dark:text-emerald-450 hover:underline font-extrabold underline-offset-2">
                 Register School &rsaquo;
               </a>
             </p>
-            <p className="text-[9px] text-[#94a3b8] font-bold">MyEduRide — Guarding Student Safety Protocols</p>
+            <p className="text-[9px] text-[#94a3b8] dark:text-slate-500 font-bold">MyEduRide — Guarding Student Safety Protocols</p>
           </div>
         </div>
 

@@ -191,7 +191,8 @@ export async function POST(request: NextRequest) {
     const { error: updateErr } = await supabase
       .from('user_profiles')
       .update(updates)
-      .eq('id', session.user_id);
+      .eq('id', session.user_id)
+      .select('id');
 
     if (updateErr) {
       // If photo_url column doesn't exist, try updating without photo_url and report fallback
@@ -203,7 +204,8 @@ export async function POST(request: NextRequest) {
         const { error: retryErr } = await supabase
           .from('user_profiles')
           .update(partialUpdates)
-          .eq('id', session.user_id);
+          .eq('id', session.user_id)
+          .select('id');
 
         if (retryErr) {
           return NextResponse.json({ error: retryErr.message }, { status: 500 });

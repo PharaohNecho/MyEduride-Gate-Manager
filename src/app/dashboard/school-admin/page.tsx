@@ -39,6 +39,8 @@ export default function SchoolAdminDashboard() {
   const [loaderFinished, setLoaderFinished] = useState(false);
   const [schoolId, setSchoolId] = useState('');
   const [activitySearch, setActivitySearch] = useState('');
+  const [gateActivityLogs, setGateActivityLogs] = useState<any[]>([]);
+  const [loadingGateLogs, setLoadingGateLogs] = useState(false);
 
   // TABS & NAVIGATION STATE
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -975,6 +977,9 @@ export default function SchoolAdminDashboard() {
       if (session.primary_school?.logo_url) {
         setSchoolLogoUrl(session.primary_school.logo_url);
       }
+      if (session.primary_school?.primary_color) {
+        setSchoolThemeColor(session.primary_school.primary_color);
+      }
     }
     // Set default ID student
     setSelectedIdStudent(simStudentOptions[0]);
@@ -1038,6 +1043,35 @@ export default function SchoolAdminDashboard() {
     }
     setLoading(false);
   };
+
+  const fetchGateLogs = async () => {
+    if (!schoolId) return;
+    setLoadingGateLogs(true);
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const sess = getSession();
+      if (sess) {
+        headers['x-myeduride-session'] = encodeURIComponent(JSON.stringify(sess));
+      }
+      const response = await fetch(`/api/gate/activity-log?school_id=${schoolId}`, {
+        headers
+      });
+      const data = await response.json().catch(() => ({}));
+      if (data && data.entries) {
+        setGateActivityLogs(data.entries);
+      }
+    } catch (e) {
+      console.error('Failed to load gate activity logs:', e);
+    } finally {
+      setLoadingGateLogs(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'reports-gate' && schoolId) {
+      fetchGateLogs();
+    }
+  }, [activeTab, schoolId]);
 
   const handleSimulateScan = () => {
     if (!selectedSimStudent) return;
@@ -1297,6 +1331,17 @@ export default function SchoolAdminDashboard() {
       } else {
         setSchoolProfileSuccess("School academic credentials & custom branding configurations updated and synced with database successfully!");
         setToastText("School settings synchronized!");
+        
+        const activeSess = getSession() as any;
+        if (activeSess) {
+          if (!activeSess.primary_school) activeSess.primary_school = {};
+          activeSess.primary_school.name = schoolName;
+          activeSess.primary_school.logo_url = schoolLogoUrl;
+          activeSess.primary_school.primary_color = schoolThemeColor;
+          updateSession(activeSess);
+          window.dispatchEvent(new Event('myeduride-session-updated'));
+        }
+        
         setTimeout(() => {
           setSchoolProfileSuccess('');
           setToastText('');
@@ -3571,55 +3616,62 @@ export default function SchoolAdminDashboard() {
             <div className="bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-xs">
               <div className="p-4 border-b border-gray-50 flex items-center justify-between bg-slate-50/50">
                 <span className="text-[10px] uppercase text-slate-400 font-black">Raw RFID Transmission logs</span>
-                <span className="text-[10px] uppercase text-slate-500 font-extrabold">{filteredActivity.length} Events matched</span>
+                <span className="text-[10px] uppercase text-slate-500 font-extrabold">{gateActivityLogs.length} Events matched</span>
               </div>
 
               <div className="divide-y divide-slate-100 max-h-96 overflow-y-auto">
-                {filteredActivity
-                  .filter(rec => {
-                    if (reportTypeFilter !== 'all' && rec.type !== reportTypeFilter) return false;
-                    if (reportStatusFilter !== 'all' && rec.status !== reportStatusFilter) return false;
-                    return true;
-                  })
-                  .map((record: any) => (
-                    <div key={record.id} className="p-4 flex flex-wrap items-center justify-between gap-3 text-xs text-left hover:bg-slate-50/20 transition-all">
-                      <div className="flex items-center gap-3">
-                        <StudentAvatar
-                          photoUrl={record.student?.photo_url || null}
-                          firstName={record.student?.first_name || 'Student'}
-                          lastName={record.student?.last_name || 'Pupil'}
-                          size="sm"
-                          accentColor="#1e40af"
-                        />
-                        <div>
-                          <p className="font-extrabold text-slate-800">
-                            {record.student?.first_name || 'Chinedu'} {record.student?.last_name || 'Alabi'}
-                          </p>
-                          <p className="text-[9px] text-[#1e40af] uppercase font-bold mt-0.5">
-                            {record.type === 'arrival' ? '↑ Inbound Entrance' : '↓ Outbound Release'}
-                          </p>
+                {loadingGateLogs ? (
+                  <div className="p-12 text-center text-xs text-slate-505 animate-pulse">Loading transit log intelligence stream...</div>
+                ) : (
+                  gateActivityLogs
+                    .filter(rec => {
+                      if (reportTypeFilter !== 'all') {
+                        const typeLower = (rec.action_type || '').toLowerCase();
+                        if (reportTypeFilter === 'arrival' && !typeLower.includes('arrival') && !typeLower.includes('in') && !typeLower.includes('clock_in')) return false;
+                        if (reportTypeFilter === 'departure' && !typeLower.includes('departure') && !typeLower.includes('out') && !typeLower.includes('clock_out')) return false;
+                      }
+                      return true;
+                    })
+                    .map((record: any) => (
+                      <div key={record.id} className="p-4 flex flex-wrap items-center justify-between gap-3 text-xs text-left hover:bg-slate-50/20 transition-all">
+                        <div className="flex items-center gap-3">
+                          <StudentAvatar
+                            photoUrl={record.photo_url || null}
+                            firstName={record.student_name || 'User'}
+                            lastName=""
+                            size="sm"
+                            accentColor="#1e40af"
+                          />
+                          <div>
+                            <p className="font-extrabold text-slate-800">
+                              {record.student_name || 'Chinedu Alabi'}
+                            </p>
+                            <p className="text-[10px] text-slate-500 mt-1">
+                              Gate Manager: <span className="font-black text-indigo-700">{record.gate_officer_name || record.details?.gate_manager_name || 'Gate Operator'}</span>
+                              {(record.details?.gate_name || record.gate_name) && (
+                                <span> • Gate: <span className="font-black text-emerald-700">{record.details?.gate_name || record.gate_name}</span></span>
+                              )}
+                            </p>
+                            <p className="text-[9px] text-[#1e40af] uppercase font-bold mt-1">
+                              {record.action_label || record.action_type || 'RFID Transmission Sweep'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-4 text-xs font-semibold">
+                          <div className="text-right">
+                            <p className="text-slate-600 font-bold">{record.time_display || formatTimeLagos(record.timestamp || record.created_at)}</p>
+                            <p className="text-[10px] text-slate-400 uppercase font-medium">Lagos Station</p>
+                          </div>
+                          <span className="px-2.5 py-0.5 text-[9px] font-black rounded-md bg-blue-50 text-blue-700 border border-blue-100">
+                            Logged
+                          </span>
                         </div>
                       </div>
+                    ))
+                )}
 
-                      <div className="flex items-center gap-4 text-xs font-semibold">
-                        <div className="text-right">
-                          <p className="text-slate-600 font-bold">{formatTimeLagos(record.timestamp)}</p>
-                          <p className="text-[10px] text-slate-400 uppercase font-medium">Lagos Station</p>
-                        </div>
-                        <span className={`px-2.5 py-0.5 text-[9px] font-black rounded-md ${
-                          record.type === 'arrival' 
-                          ? record.status === 'on_time' 
-                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-100' 
-                            : 'bg-amber-100 text-yellow-800 border border-yellow-200'
-                          : 'bg-blue-50 text-blue-700 border border-blue-100'
-                        }`}>
-                          {record.type === 'arrival' ? record.status === 'on_time' ? 'On Time' : 'Late' : 'Dispatched'}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-
-                {filteredActivity.length === 0 && (
+                {!loadingGateLogs && gateActivityLogs.length === 0 && (
                   <p className="text-center py-12 text-xs text-slate-400">No transit records currently match your criteria.</p>
                 )}
               </div>

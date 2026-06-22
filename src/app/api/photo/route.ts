@@ -5,9 +5,30 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET(request: NextRequest) {
-  const path = request.nextUrl.searchParams.get('path');
+  let path = request.nextUrl.searchParams.get('path');
   if (!path) {
     return NextResponse.json({ error: 'Missing path parameter' }, { status: 400 });
+  }
+
+  // Robustly handle full photo proxy URL being passed instead of raw storage path
+  if (path.includes('path=')) {
+    try {
+      const url = new URL(path, 'https://dummy.com');
+      const innerPath = url.searchParams.get('path');
+      if (innerPath) {
+        path = innerPath;
+      }
+    } catch (e) {
+      const match = path.match(/[?&]path=([^&]+)/);
+      if (match && match[1]) {
+        path = decodeURIComponent(match[1]);
+      } else {
+        const parts = path.split('path=');
+        if (parts[1]) {
+          path = decodeURIComponent(parts[1]);
+        }
+      }
+    }
   }
 
   if (!isSupabaseConfigured()) {

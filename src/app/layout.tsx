@@ -162,7 +162,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="antialiased font-sans bg-gray-50 text-gray-900">
+      <body className="antialiased font-sans bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-slate-100">
         {children}
       </body>
     </html>

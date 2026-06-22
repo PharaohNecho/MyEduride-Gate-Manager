@@ -105,6 +105,7 @@ export function logout() {
   if (typeof window === 'undefined') return;
   // Clear the session cookie and localStorage
   document.cookie = 'myeduride_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT;';
+  document.cookie = 'myeduride_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=None; Secure;';
   localStorage.removeItem('myeduride_session');
   window.location.href = '/auth/login';
 }

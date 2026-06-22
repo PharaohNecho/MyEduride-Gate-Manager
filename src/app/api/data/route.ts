@@ -1044,7 +1044,22 @@ export async function POST(request: NextRequest) {
           } else {
             // Real multi-modal comparison if a selfie was uploaded
             const selfieBase64 = params.selfie_base64;
-            const staffPhotoPath = staffProfile?.photo_url;
+            let staffPhotoPath = staffProfile?.photo_url || '';
+
+            if (staffPhotoPath.includes('path=')) {
+              try {
+                const urlObj = new URL(staffPhotoPath, 'https://dummy.com');
+                const extractedPath = urlObj.searchParams.get('path');
+                if (extractedPath) {
+                  staffPhotoPath = extractedPath;
+                }
+              } catch (e) {
+                const parts = staffPhotoPath.split('path=');
+                if (parts[1]) {
+                  staffPhotoPath = decodeURIComponent(parts[1]);
+                }
+              }
+            }
 
             if (selfieBase64 && staffPhotoPath && process.env.GEMINI_API_KEY) {
               try {

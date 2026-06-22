@@ -306,6 +306,8 @@ export default function SuperAdminDashboard() {
   const [cardDisclaimerText, setCardDisclaimerText] = useState('The card is an official proof of student status and must be carried at all times while on campus or when using school facilities.');
   const [cardReturnInstructions, setCardReturnInstructions] = useState('If found, please return ID card to Ugbekun Academy. Thank you');
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+  const [cardLogoUrl, setCardLogoUrl] = useState<string>('');
+  const [cardSignatureUrl, setCardSignatureUrl] = useState<string>('');
 
   // Drag-and-Drop visual layout state
   const [isDragMode, setIsDragMode] = useState(false);
@@ -377,6 +379,8 @@ export default function SuperAdminDashboard() {
         if (t.cardShowAddress !== undefined) setCardShowAddress(t.cardShowAddress);
         if (t.cardShowSignature !== undefined) setCardShowSignature(t.cardShowSignature);
         if (t.cardShowDisclaimer !== undefined) setCardShowDisclaimer(t.cardShowDisclaimer);
+        setCardLogoUrl(t.cardLogoUrl || '');
+        setCardSignatureUrl(t.cardSignatureUrl || '');
         return;
       }
     } catch (e) {
@@ -441,6 +445,12 @@ export default function SuperAdminDashboard() {
 
       const showDisclaimer = localStorage.getItem('myeduride_card_show_disclaimer');
       if (showDisclaimer) setCardShowDisclaimer(showDisclaimer === 'true');
+
+      const savedLogoUrl = localStorage.getItem('myeduride_card_logo_url');
+      if (savedLogoUrl) setCardLogoUrl(savedLogoUrl);
+
+      const savedSignatureUrl = localStorage.getItem('myeduride_card_signature_url');
+      if (savedSignatureUrl) setCardSignatureUrl(savedSignatureUrl);
     } catch (e) {
       console.error('Error loading template settings from localStorage:', e);
     } finally {
@@ -810,6 +820,77 @@ export default function SuperAdminDashboard() {
         setSelectedReportSchoolId(prev => prev || schoolsList[0].id);
       }
       setUsers(usersList);
+
+      // --- DYNAMICALLY GENERATE REAL STUDENTS & STAFF FROM ACTIVE DB RECORDS ---
+      const dbStudentsList: any[] = [];
+      const dbStaffList: any[] = [];
+
+      for (const sch of schoolsList) {
+        try {
+          const res = await fetch('/api/data', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              action: 'get_students',
+              params: { school_id: sch.id }
+            })
+          });
+          if (res.ok) {
+            const sData = await res.json();
+            if (sData && sData.students && sData.students.length > 0) {
+              sData.students.forEach((stu: any) => {
+                dbStudentsList.push({
+                  id: stu.id,
+                  name: `${stu.first_name || ''} ${stu.last_name || ''}`.trim() || 'Active Student',
+                  schoolId: sch.id,
+                  schoolName: sch.name,
+                  idNo: stu.student_id_number || `STU-${stu.id.slice(0, 4).toUpperCase()}`,
+                  birth: stu.date_of_birth ? new Date(stu.date_of_birth).toLocaleDateString() : '12/04/2012',
+                  address: sch.address || 'Campus Compound, Lagos',
+                  avatar: stu.avatar_url || '',
+                  type: 'Student',
+                  grade: stu.class?.name || stu.class_name || 'Active Student'
+                });
+              });
+            }
+          }
+        } catch (e) {
+          console.error('[super-admin] Error loading real student cards:', e);
+        }
+      }
+
+      // Load school staff/roles
+      usersList.forEach((usr: any) => {
+        const roles = usr.roles || [];
+        if (!roles.includes('super_admin')) {
+          const matchedSchool = schoolsList.find((s: any) => s.id === usr.school_id) || schoolsList[0];
+          dbStaffList.push({
+            id: usr.id,
+            name: usr.full_name || usr.username,
+            schoolId: matchedSchool?.id || '',
+            schoolName: matchedSchool?.name || 'Campus Site',
+            idNo: `STF-${usr.id.slice(0, 4).toUpperCase()}`,
+            birth: '12/04/1985',
+            address: matchedSchool?.address || 'Campus Headquarter, Lagos',
+            avatar: usr.avatar_url || '',
+            type: 'Staff',
+            grade: roles[0]?.replace('_', ' ').toUpperCase() || 'Instructor'
+          });
+        }
+      });
+
+      // Update state with dynamic DB lists if present, otherwise fallback gracefully
+      if (dbStudentsList.length > 0) {
+        setIdCardsStudents(dbStudentsList);
+      } else {
+        setIdCardsStudents(defaultIDCardsStudents);
+      }
+
+      if (dbStaffList.length > 0) {
+        setIdCardsStaff(dbStaffList);
+      } else {
+        setIdCardsStaff(defaultIDCardsStaff);
+      }
 
       // Compute aggregates dynamically from populated listings
       const computedStudents = schoolsList.reduce((acc, s) => acc + (s.student_count || 0), 0);
@@ -2002,7 +2083,7 @@ export default function SuperAdminDashboard() {
                                 frontCard.style.width = '480px';
                                 frontCard.style.height = '304px';
                                 frontCard.style.backgroundColor = cardBgColor;
-                                frontCard.style.borderRadius = '24px';
+                                frontCard.style.borderRadius = '2px';
                                 frontCard.style.position = 'relative';
                                 frontCard.style.overflow = 'hidden';
                                 frontCard.style.boxSizing = 'border-box';
@@ -2028,8 +2109,10 @@ export default function SuperAdminDashboard() {
 
                                   <!-- Logo watermark representation -->
                                   ${cardShowLogo ? `
-                                    <div style="position: absolute; right:32px; top:48px; width:160px; height:160px; opacity:0.05; pointer-events:none; z-index:0; color:#334155;">
-                                      ${cardLogoType === 'shield_tribal' ? `
+                                    <div style="position: absolute; right:32px; top:48px; width:160px; height:160px; opacity:0.08; pointer-events:none; z-index:0; color:#334155; display:flex; align-items:center; justify-content:center;">
+                                      ${cardLogoUrl ? `
+                                        <img src="${cardLogoUrl}" style="width:100%; height:100%; object-fit:contain; filter:grayscale(100%);" />
+                                      ` : cardLogoType === 'shield_tribal' ? `
                                         <svg viewBox="0 0 24 24" fill="currentColor" style="width:100%; height:100%;"><path d="M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10a10 10 0 0 0 10-10A10 10 0 0 0 12 2M12 4a2 2 0 1 1-2 2a2 2 0 0 1 2-2M8 12h8a4 4 0 0 1-4 4a4 4 0 0 1-4-4Z"/></svg>
                                       ` : `
                                         <svg viewBox="0 0 24 24" fill="currentColor" style="width:100%; height:100%;"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
@@ -2157,7 +2240,7 @@ export default function SuperAdminDashboard() {
                                 backCard.style.width = '480px';
                                 backCard.style.height = '304px';
                                 backCard.style.backgroundColor = cardBgColor;
-                                backCard.style.borderRadius = '24px';
+                                backCard.style.borderRadius = '2px';
                                 backCard.style.position = 'relative';
                                 backCard.style.overflow = 'hidden';
                                 backCard.style.boxSizing = 'border-box';
@@ -2203,10 +2286,14 @@ export default function SuperAdminDashboard() {
                                       <span style="font-size:8.5px; font-weight:900; text-transform:uppercase; color:#94a3b8; letter-spacing:0.05em; margin-bottom:4px;">Authorised Signature</span>
                                       ${cardShowSignature ? `
                                         <div style="width:100%; height:44px; background-color:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:4px; box-sizing:border-box; position:relative; overflow:hidden; box-shadow:inset 0 2px 4px 0 rgba(0,0,0,0.02);">
-                                          <svg viewBox="0 0 100 35" style="width:96px; height:28px; color:#1e40af; fill:none; stroke:currentColor;" stroke-width="1.8" stroke-linecap="round">
-                                            <path d="M10 25 C25 5, 45 30, 50 15 C55 4, 75 8, 85 20 M35 15 L65 15" />
-                                          </svg>
-                                          <span style="font-size:7px; font-weight:700; color:#64748b; position:absolute; bottom:2px;">Principal</span>
+                                          ${cardSignatureUrl ? `
+                                            <img src="${cardSignatureUrl}" style="max-width:100%; max-height:100%; object-fit:contain;" />
+                                          ` : `
+                                            <svg viewBox="0 0 100 35" style="width:96px; height:28px; color:#1e40af; fill:none; stroke:currentColor;" stroke-width="1.8" stroke-linecap="round">
+                                              <path d="M10 25 C25 5, 45 30, 50 15 C55 4, 75 8, 85 20 M35 15 L65 15" />
+                                            </svg>
+                                            <span style="font-size:7px; font-weight:700; color:#64748b; position:absolute; bottom:2px;">Principal</span>
+                                          `}
                                         </div>
                                       ` : `
                                         <div style="width:100%; height:44px; background-color:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:8px; font-weight:800; text-transform:uppercase; border-style:dashed; box-sizing:border-box;">
@@ -2596,8 +2683,80 @@ export default function SuperAdminDashboard() {
                       <div className="space-y-2 border-t border-slate-100 pt-3">
                         <span className="text-[8.5px] uppercase font-black text-slate-400 tracking-wider block">School overrides</span>
                         
+                        <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200/50">
+                          <div>
+                            <label className="text-[8.5px] font-bold text-slate-500 uppercase block mb-1">School Logo (File)</label>
+                            <div className="relative">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    const r = new FileReader();
+                                    r.onload = () => setCardLogoUrl(r.result as string);
+                                    r.readAsDataURL(file);
+                                  }
+                                }}
+                                className="hidden"
+                                id="logo-file-upload"
+                              />
+                              <label
+                                htmlFor="logo-file-upload"
+                                className="w-full h-11 flex flex-col items-center justify-center border border-dashed border-slate-300 rounded-xl p-1 bg-white hover:bg-slate-50 cursor-pointer text-[9.5px] font-extrabold text-[#1a56db] select-none text-center shadow-xs"
+                              >
+                                {cardLogoUrl ? "✅ Logo Loaded" : "📤 Upload Logo"}
+                              </label>
+                            </div>
+                            {cardLogoUrl && (
+                              <button
+                                type="button"
+                                onClick={() => setCardLogoUrl('')}
+                                className="text-[8px] font-black text-rose-500 uppercase mt-0.5 hover:underline bg-transparent border-none cursor-pointer p-0 block"
+                              >
+                                Reset Logo
+                              </button>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="text-[8.5px] font-bold text-slate-500 uppercase block mb-1">Auth Signature</label>
+                            <div className="relative">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    const r = new FileReader();
+                                    r.onload = () => setCardSignatureUrl(r.result as string);
+                                    r.readAsDataURL(file);
+                                  }
+                                }}
+                                className="hidden"
+                                id="signature-file-upload"
+                              />
+                              <label
+                                htmlFor="signature-file-upload"
+                                className="w-full h-11 flex flex-col items-center justify-center border border-dashed border-slate-300 rounded-xl p-1 bg-white hover:bg-slate-50 cursor-pointer text-[9.5px] font-extrabold text-[#1a56db] select-none text-center shadow-xs"
+                              >
+                                {cardSignatureUrl ? "✅ Signed" : "📤 Upload Sign"}
+                              </label>
+                            </div>
+                            {cardSignatureUrl && (
+                              <button
+                                type="button"
+                                onClick={() => setCardSignatureUrl('')}
+                                className="text-[8px] font-black text-rose-500 uppercase mt-0.5 hover:underline bg-transparent border-none cursor-pointer p-0 block"
+                              >
+                                Reset Signature
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
                         <div>
-                          <label className="text-[9px] font-bold text-slate-500 uppercase block mb-0.5">School Crest Symbol</label>
+                          <label className="text-[9px] font-bold text-slate-500 uppercase block mb-0.5">School Crest Symbol (Fallback)</label>
                           <select
                             value={cardLogoType}
                             onChange={(e) => setCardLogoType(e.target.value as any)}
@@ -2784,8 +2943,10 @@ export default function SuperAdminDashboard() {
 
                             {/* Front School Crest/Logo Graphic representation inside background */}
                             {cardShowLogo && (
-                              <div className="absolute right-8 top-12 w-48 h-48 opacity-[0.06] pointer-events-none z-0 text-slate-700">
-                                {cardLogoType === 'shield_tribal' ? (
+                              <div className="absolute right-8 top-12 w-48 h-48 opacity-[0.08] pointer-events-none z-0 text-slate-700 flex items-center justify-center">
+                                {cardLogoUrl ? (
+                                  <img src={cardLogoUrl} className="w-full h-full object-contain filter grayscale" alt="watermark logo" />
+                                ) : cardLogoType === 'shield_tribal' ? (
                                   <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full"><path d="M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10a10 10 0 0 0 10-10A10 10 0 0 0 12 2M12 4a2 2 0 1 1-2 2a2 2 0 0 1 2-2M8 12h8a4 4 0 0 1-4 4a4 4 0 0 1-4-4Z"/></svg>
                                 ) : (
                                   <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
@@ -3063,11 +3224,17 @@ export default function SuperAdminDashboard() {
                               <span className="text-[8.5px] font-black uppercase text-slate-400 tracking-wider mb-0.5">Authorised Signature</span>
                               {cardShowSignature ? (
                                 <div className="w-full h-11 bg-slate-50 border border-slate-200/80 rounded-lg flex flex-col items-center justify-center p-0.5 shadow-inner relative overflow-hidden">
-                                  {/* Cursive Principal signature SVG */}
-                                  <svg viewBox="0 0 100 35" className="w-24 h-7 text-[#1e40af] fill-none stroke-current" strokeWidth="1.8" strokeLinecap="round">
-                                    <path d="M10 25 C25 5, 45 30, 50 15 C55 4, 75 8, 85 20 M35 15 L65 15" />
-                                  </svg>
-                                  <span className="text-[7px] font-bold text-slate-500 absolute bottom-0.5 font-sans leading-none">Principal</span>
+                                  {cardSignatureUrl ? (
+                                    <img src={cardSignatureUrl} className="max-w-full max-h-full object-contain" alt="authorised signature" />
+                                  ) : (
+                                    <>
+                                      {/* Cursive Principal signature SVG */}
+                                      <svg viewBox="0 0 100 35" className="w-24 h-7 text-[#1e40af] fill-none stroke-current" strokeWidth="1.8" strokeLinecap="round">
+                                        <path d="M10 25 C25 5, 45 30, 50 15 C55 4, 75 8, 85 20 M35 15 L65 15" />
+                                      </svg>
+                                      <span className="text-[7px] font-bold text-slate-500 absolute bottom-0.5 font-sans leading-none">Principal</span>
+                                    </>
+                                  )}
                                 </div>
                               ) : (
                                 <div className="w-full h-11 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 text-[8px] font-bold uppercase border border-dashed border-slate-300">
@@ -3202,7 +3369,7 @@ export default function SuperAdminDashboard() {
                                 frontCard.style.width = '480px';
                                 frontCard.style.height = '304px';
                                 frontCard.style.backgroundColor = cardBgColor;
-                                frontCard.style.borderRadius = '24px';
+                                frontCard.style.borderRadius = '2px';
                                 frontCard.style.position = 'relative';
                                 frontCard.style.overflow = 'hidden';
                                 frontCard.style.boxSizing = 'border-box';
@@ -3225,8 +3392,10 @@ export default function SuperAdminDashboard() {
                                   </div>
 
                                   ${cardShowLogo ? `
-                                    <div style="position: absolute; right:32px; top:48px; width:160px; height:160px; opacity:0.05; pointer-events:none; z-index:0; color:#334155;">
-                                      ${cardLogoType === 'shield_tribal' ? `
+                                    <div style="position: absolute; right:32px; top:48px; width:160px; height:160px; opacity:0.08; pointer-events:none; z-index:0; color:#334155; display:flex; align-items:center; justify-content:center;">
+                                      ${cardLogoUrl ? `
+                                        <img src="${cardLogoUrl}" style="width:100%; height:100%; object-fit:contain; filter:grayscale(100%);" />
+                                      ` : cardLogoType === 'shield_tribal' ? `
                                         <svg viewBox="0 0 24 24" fill="currentColor" style="width:100%; height:100%;"><path d="M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10a10 10 0 0 0 10-10A10 10 0 0 0 12 2M12 4a2 2 0 1 1-2 2a2 2 0 0 1 2-2M8 12h8a4 4 0 0 1-4 4a4 4 0 0 1-4-4Z"/></svg>
                                       ` : `
                                         <svg viewBox="0 0 24 24" fill="currentColor" style="width:100%; height:100%;"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
@@ -3345,7 +3514,7 @@ export default function SuperAdminDashboard() {
                                 backCard.style.width = '480px';
                                 backCard.style.height = '304px';
                                 backCard.style.backgroundColor = cardBgColor;
-                                backCard.style.borderRadius = '24px';
+                                backCard.style.borderRadius = '2px';
                                 backCard.style.position = 'relative';
                                 backCard.style.overflow = 'hidden';
                                 backCard.style.boxSizing = 'border-box';
@@ -3385,10 +3554,14 @@ export default function SuperAdminDashboard() {
                                       <span style="font-size:8.5px; font-weight:900; text-transform:uppercase; color:#94a3b8; letter-spacing:0.05em; margin-bottom:4px;">Authorised Signature</span>
                                       ${cardShowSignature ? `
                                         <div style="width:100%; height:44px; background-color:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:4px; box-sizing:border-box; position:relative; overflow:hidden; box-shadow:inset 0 2px 4px 0 rgba(0,0,0,0.02);">
-                                          <svg viewBox="0 0 100 35" style="width:96px; height:28px; color:#1e40af; fill:none; stroke:currentColor;" stroke-width="1.8" stroke-linecap="round">
-                                            <path d="M10 25 C25 5, 45 30, 50 15 C55 4, 75 8, 85 20 M35 15 L65 15" />
-                                          </svg>
-                                          <span style="font-size:7px; font-weight:700; color:#64748b; position:absolute; bottom:2px;">Principal</span>
+                                          ${cardSignatureUrl ? `
+                                            <img src="${cardSignatureUrl}" style="max-width:100%; max-height:100%; object-fit:contain;" />
+                                          ` : `
+                                            <svg viewBox="0 0 100 35" style="width:96px; height:28px; color:#1e40af; fill:none; stroke:currentColor;" stroke-width="1.8" stroke-linecap="round">
+                                              <path d="M10 25 C25 5, 45 30, 50 15 C55 4, 75 8, 85 20 M35 15 L65 15" />
+                                            </svg>
+                                            <span style="font-size:7px; font-weight:700; color:#64748b; position:absolute; bottom:2px;">Principal</span>
+                                          `}
                                         </div>
                                       ` : `
                                         <div style="width:100%; height:44px; background-color:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:8px; font-weight:800; text-transform:uppercase; border-style:dashed; box-sizing:border-box;">
@@ -4558,7 +4731,9 @@ export default function SuperAdminDashboard() {
                         cardShowLogo,
                         cardShowAddress,
                         cardShowSignature,
-                        cardShowDisclaimer
+                        cardShowDisclaimer,
+                        cardLogoUrl,
+                        cardSignatureUrl
                       };
 
                       try {
@@ -4582,6 +4757,8 @@ export default function SuperAdminDashboard() {
                         localStorage.setItem('myeduride_card_show_address', String(cardShowAddress));
                         localStorage.setItem('myeduride_card_show_signature', String(cardShowSignature));
                         localStorage.setItem('myeduride_card_show_disclaimer', String(cardShowDisclaimer));
+                        localStorage.setItem('myeduride_card_logo_url', cardLogoUrl);
+                        localStorage.setItem('myeduride_card_signature_url', cardSignatureUrl);
                       } catch (e) {}
 
                       try {

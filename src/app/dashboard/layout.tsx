@@ -5,9 +5,23 @@ import { usePathname } from 'next/navigation';
 import { RoleSwitcher } from '@/components/shared/RoleSwitcher';
 import { AccountSettingsCard } from '@/components/shared/AccountSettingsCard';
 import { SessionIdleGuard } from '@/components/shared/SessionIdleGuard';
-import { logout } from '@/lib/api';
+import { logout, getSession } from '@/lib/api';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
 import { KeyRound, LogOut, X, Database, Info, HelpCircle } from 'lucide-react';
+
+function hexToRgb(hex: string): string {
+  const clean = (hex || '').replace('#', '');
+  if (clean.length === 3) {
+    const r = parseInt(clean[0] + clean[0], 16) || 30;
+    const g = parseInt(clean[1] + clean[1], 16) || 64;
+    const b = parseInt(clean[2] + clean[2], 16) || 175;
+    return `${r}, ${g}, ${b}`;
+  }
+  const r = parseInt(clean.substring(0, 2), 16) || 30;
+  const g = parseInt(clean.substring(2, 4), 16) || 64;
+  const b = parseInt(clean.substring(4, 6), 16) || 175;
+  return `${r}, ${g}, ${b}`;
+}
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -16,13 +30,45 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [showAccount, setShowAccount] = useState(false);
   const [configured, setConfigured] = useState(true);
   const [showSetupGuide, setShowSetupGuide] = useState(false);
+  const [schoolThemeColor, setSchoolThemeColor] = useState<string>('');
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    setTheme(savedTheme as 'light' | 'dark');
+    document.documentElement.classList.toggle('dark', savedTheme === 'dark');
+  }, []);
+
+  const toggleTheme = () => {
+    const nextTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(nextTheme);
+    localStorage.setItem('theme', nextTheme);
+    document.documentElement.classList.toggle('dark', nextTheme === 'dark');
+    // Dispatch event to warn child pages
+    window.dispatchEvent(new CustomEvent('myeduride-theme-updated', { detail: nextTheme }));
+  };
 
   useEffect(() => {
     setConfigured(isSupabaseConfigured());
 
+    const loadThemeFromSession = () => {
+      const activeSession = getSession();
+      const primarySchool = activeSession?.primary_school as any;
+      if (primarySchool?.primary_color) {
+        setSchoolThemeColor(primarySchool.primary_color);
+      }
+    };
+
+    loadThemeFromSession();
+
     const handleOpenSettings = () => setShowAccount(true);
     window.addEventListener('myeduride-open-settings', handleOpenSettings);
-    return () => window.removeEventListener('myeduride-open-settings', handleOpenSettings);
+    window.addEventListener('myeduride-session-updated', loadThemeFromSession);
+
+    return () => {
+      window.removeEventListener('myeduride-open-settings', handleOpenSettings);
+      window.removeEventListener('myeduride-session-updated', loadThemeFromSession);
+    };
   }, []);
 
   return (
@@ -114,7 +160,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       )}
 
-      <div className="fixed top-3 right-3 z-30 flex items-center gap-1 bg-white/90 shadow-sm border border-slate-100 p-1 rounded-2xl">
+      <div className="fixed top-3 right-3 z-30 flex items-center gap-1.5 bg-white/95 dark:bg-slate-900/95 shadow-md border border-slate-150 dark:border-slate-800 p-1 rounded-2xl transition-all">
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="p-1 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-amber-400 font-extrabold text-[10.5px] border-none cursor-pointer flex items-center gap-1 transition"
+          title="Toggle Light / Dark Mode"
+        >
+          {theme === 'light' ? '☀️ Light' : '🌙 Dark'}
+        </button>
         <RoleSwitcher showLogout={false} />
       </div>
 
@@ -137,6 +191,39 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex-1 min-h-0 md:h-full md:overflow-hidden flex flex-col">
         {children}
       </div>
+
+      {schoolThemeColor && (
+        <style dangerouslySetInnerHTML={{ __html: `
+          /* Dynamic branding color overrides for school administrators */
+          :root {
+            --primary-brand: ${schoolThemeColor};
+            --primary-brand-rgb: ${hexToRgb(schoolThemeColor)};
+          }
+          
+          .bg-\\[\\#1e40af\\] {
+            background-color: var(--primary-brand) !important;
+          }
+          .border-\\[\\#1e40af\\] {
+            border-color: var(--primary-brand) !important;
+          }
+          .text-\\[\\#1e40af\\] {
+            color: var(--primary-brand) !important;
+          }
+          .focus\\:border-\\[\\#1e40af\\]\\/30:focus {
+            border-color: rgba(var(--primary-brand-rgb), 0.3) !important;
+          }
+
+          .hover\\:bg-\\[\\#1e3a8a\\]:hover {
+            filter: brightness(0.85) !important;
+          }
+          .hover\\:bg-\\[\\#1e40af\\]:hover {
+            filter: brightness(0.9) !important;
+          }
+          .hover\\:text-\\[\\#fbbf24\\]:hover {
+            opacity: 0.9 !important;
+          }
+        `}} />
+      )}
     </div>
   );
 }

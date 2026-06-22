@@ -131,7 +131,8 @@ export async function POST(request: NextRequest) {
     const { error: updateErr } = await supabase
       .from('user_profiles')
       .update(dbParams)
-      .eq('id', targetUserId);
+      .eq('id', targetUserId)
+      .select('id');
 
     if (updateErr) {
       console.error('[POST users/update] DB primary update failed:', updateErr.message);
@@ -144,6 +145,7 @@ export async function POST(request: NextRequest) {
         .from('user_profiles')
         .update({ photo_url: updates.photo_url })
         .eq('id', targetUserId)
+        .select('id')
         .catch(() => {});
     }
 
