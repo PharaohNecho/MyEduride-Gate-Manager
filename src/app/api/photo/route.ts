@@ -24,7 +24,12 @@ export async function GET(request: NextRequest) {
     // Download file from 'photos' bucket
     const { data, error } = await supabase.storage.from('photos').download(path);
     if (error || !data) {
-      console.warn(`[GET /api/photo] Storage download failed or file empty for path ${path}:`, error?.message);
+      const isNotFound = error?.message?.includes('Object not found') || (error as any)?.status === 404;
+      if (!isNotFound) {
+        console.warn(`[GET /api/photo] Storage download system error for path ${path}:`, error?.message);
+      } else {
+        console.log(`[GET /api/photo] Info: File not present at storage path ${path}`);
+      }
       return NextResponse.json({ error: 'File not found' }, { status: 404 });
     }
 

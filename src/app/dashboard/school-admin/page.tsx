@@ -26,6 +26,13 @@ export default function SchoolAdminDashboard() {
   });
   const [recentActivity, setRecentActivity] = useState([]);
   const [schoolName, setSchoolName] = useState('');
+  const [schoolLogoUrl, setSchoolLogoUrl] = useState('');
+  const [schoolAddress, setSchoolAddress] = useState('');
+  const [schoolThemeColor, setSchoolThemeColor] = useState('');
+  const [schoolDirectorSignature, setSchoolDirectorSignature] = useState('');
+  const [savingSchoolProfile, setSavingSchoolProfile] = useState(false);
+  const [schoolProfileSuccess, setSchoolProfileSuccess] = useState('');
+  const [schoolProfileError, setSchoolProfileError] = useState('');
   const [userName, setUserName] = useState('');
   const [userPhotoUrl, setUserPhotoUrl] = useState('');
   const [loading, setLoading] = useState(true);
@@ -126,6 +133,15 @@ export default function SchoolAdminDashboard() {
   const [staffScanDirection, setStaffScanDirection] = useState<'in' | 'out'>('in');
   const [studentScanId, setStudentScanId] = useState('');
   const [staffScanId, setStaffScanId] = useState('');
+  const [scanGateName, setScanGateName] = useState('Main Gate');
+  const [scanGateManagerId, setScanGateManagerId] = useState('');
+  const [staffSimulationFaceOutcome, setStaffSimulationFaceOutcome] = useState('pass');
+  const [editingParent, setEditingParent] = useState<any>(null);
+  const [editParentFullName, setEditParentFullName] = useState('');
+  const [editParentUsername, setEditParentUsername] = useState('');
+  const [editParentEmail, setEditParentEmail] = useState('');
+  const [editParentPassword, setEditParentPassword] = useState('');
+  const [editingParentLoading, setEditingParentLoading] = useState(false);
   const [cameraActive, setCameraActive] = useState(true);
   const [isFrontCamera, setIsFrontCamera] = useState(false);
   const [pickupSearchQuery, setPickupSearchQuery] = useState('');
@@ -525,7 +541,10 @@ export default function SchoolAdminDashboard() {
               student_id: studentMatch.id,
               type: transType,
               status: 'normal',
-              timestamp: new Date().toISOString()
+              timestamp: new Date().toISOString(),
+              gate_name: scanGateName,
+              gate_manager_id: scanGateManagerId || null,
+              gate_manager_name: staffList.find(s => s.id === scanGateManagerId)?.name || 'Gate Operator'
             }
           })
         });
@@ -629,7 +648,11 @@ export default function SchoolAdminDashboard() {
               staff_id: staffMatch.id,
               type: transType,
               status: 'normal',
-              timestamp: new Date().toISOString()
+              timestamp: new Date().toISOString(),
+              gate_name: scanGateName,
+              gate_manager_id: scanGateManagerId || null,
+              gate_manager_name: staffList.find(s => s.id === scanGateManagerId)?.name || 'Gate Operator',
+              simulation_face_outcome: staffSimulationFaceOutcome
             }
           })
         });
@@ -638,6 +661,28 @@ export default function SchoolAdminDashboard() {
 
         if (!response.ok || data.error) {
           const errMsg = data.message || data.error || 'Verification rejected';
+          if (data.error === 'FACIAL_MISMATCH') {
+            setToastText(`Verified Clearance Fail: ${errMsg}`);
+            playGateBeep(220, 0.45); // Buzzer sound
+            
+            const warningLog = {
+              id: Date.now().toString(),
+              action: `FACIAL RECOGNITION FAIL: Staff member ${staffMatch.name || staffMatch.full_name} mismatch.`,
+              user: "Facial Patrol System",
+              target: errMsg,
+              status: 'error',
+              timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19)
+            };
+            setSystemLogs(prev => [warningLog, ...prev]);
+
+            setScannedResultPayload({
+              type: 'error',
+              scannedValue: `Staff Face Scan: FAIL (${errMsg})`,
+              timestamp: warningLog.timestamp
+            });
+            return;
+          }
+
           setToastText(`Scan blocked! Double check-in/out protection active.`);
           playGateBeep(220, 0.45);
 
@@ -927,6 +972,9 @@ export default function SchoolAdminDashboard() {
       if (session.primary_school?.name) {
         setSchoolName(session.primary_school.name);
       }
+      if (session.primary_school?.logo_url) {
+        setSchoolLogoUrl(session.primary_school.logo_url);
+      }
     }
     // Set default ID student
     setSelectedIdStudent(simStudentOptions[0]);
@@ -939,6 +987,21 @@ export default function SchoolAdminDashboard() {
       const currentSchoolId = dashboard.school_id || '';
       setSchoolId(currentSchoolId);
       setSchoolName(dashboard.school_name || dashboard.school?.name || '');
+      if (dashboard.school) {
+        if (dashboard.school.logo_url) {
+          setSchoolLogoUrl(dashboard.school.logo_url);
+        }
+        if (dashboard.school.primary_color) {
+          setSchoolThemeColor(dashboard.school.primary_color);
+        }
+        if (dashboard.school.welcome_message && dashboard.school.welcome_message.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(dashboard.school.welcome_message);
+            if (parsed.address) setSchoolAddress(parsed.address);
+            if (parsed.director_signature) setSchoolDirectorSignature(parsed.director_signature);
+          } catch (e) {}
+        }
+      }
       setStats(dashboard);
       setRecentActivity(dashboard.recent_activity || []);
 
@@ -1215,6 +1278,37 @@ export default function SchoolAdminDashboard() {
     }
   };
 
+  const handleSaveSchoolProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingSchoolProfile(true);
+    setSchoolProfileSuccess('');
+    setSchoolProfileError('');
+    try {
+      const res = await fetchData('update_school_settings', {
+        school_id: schoolId,
+        name: schoolName,
+        logo_url: schoolLogoUrl,
+        address: schoolAddress,
+        theme_color: schoolThemeColor,
+        director_signature: schoolDirectorSignature
+      });
+      if (res && res.error) {
+        setSchoolProfileError(res.error);
+      } else {
+        setSchoolProfileSuccess("School academic credentials & custom branding configurations updated and synced with database successfully!");
+        setToastText("School settings synchronized!");
+        setTimeout(() => {
+          setSchoolProfileSuccess('');
+          setToastText('');
+        }, 3000);
+      }
+    } catch (err: any) {
+      setSchoolProfileError(err.message || 'Error saving school profile settings');
+    } finally {
+      setSavingSchoolProfile(false);
+    }
+  };
+
   return (
     <div className="w-full h-full md:h-full md:overflow-hidden bg-gradient-to-tr from-[#eef4ff] via-[#f8fafc] to-[#FFFFFF] flex text-slate-800 font-sans selection:bg-[#fbbf24]/20 selection:text-[#1e3a8a] relative">
       
@@ -1226,11 +1320,17 @@ export default function SchoolAdminDashboard() {
         <div>
           <div className="p-6 flex items-center justify-between border-b border-slate-100/80">
             <div className={`flex items-center gap-2.5 overflow-hidden transition-all duration-300 ${isSidebarExpanded ? 'opacity-100' : 'opacity-0 md:max-w-0'}`}>
-              <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0 shadow-sm">
-                <School size={16} />
+              <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 shadow-sm flex items-center justify-center">
+                {schoolLogoUrl ? (
+                  <img src={schoolLogoUrl} alt="Logo" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                    <School size={16} />
+                  </div>
+                )}
               </div>
-              <div className="text-left select-none">
-                <h2 className="text-sm font-black text-slate-800 leading-none tracking-tight">MyEduRide</h2>
+              <div className="text-left select-none max-w-[124px]">
+                <h2 className="text-xs font-black text-slate-800 leading-tight tracking-tight uppercase truncate">{schoolName || 'MyEduRide'}</h2>
                 <p className="text-[9px] uppercase tracking-wider text-emerald-600 font-extrabold leading-none mt-1">School Node</p>
               </div>
             </div>
@@ -1592,86 +1692,99 @@ export default function SchoolAdminDashboard() {
       </aside>
 
       {/* Mobile Bottom Menu Bar (sticky navigation bar at the bottom for mobile devices, hidden on desktop/tablet) */}
-      <div className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-[#0a1424] border-t border-slate-800/80 px-2 pt-2.5 pb-4 shadow-[0_-12px_35px_rgba(0,0,0,0.5)] backdrop-blur-md bg-opacity-95 select-none">
+      <div className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-[#0a1424] border-t border-slate-800/80 px-1 pt-2.5 pb-4 shadow-[0_-12px_35px_rgba(0,0,0,0.5)] backdrop-blur-md bg-opacity-95 select-none">
         <div className="flex items-center justify-between max-w-lg mx-auto h-14">
           
-          {/* 1. Home tab button */}
+          {/* 1. Student tab button */}
           <button
-            onClick={() => setActiveTab('dashboard')}
+            onClick={() => {
+              setActiveTab('students-list');
+              setToastText("Opened Students Directory");
+              setTimeout(() => setToastText(''), 2500);
+            }}
             className={`flex flex-col items-center justify-center flex-1 h-full select-none cursor-pointer border-none bg-transparent ${
-              activeTab === 'dashboard' ? 'text-white' : 'text-slate-400 hover:text-slate-200'
+              activeTab === 'students-list' ? 'text-white' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'dashboard' ? 'bg-[#1e40af] text-amber-400' : 'text-slate-400'}`}>
-              <LayoutDashboard size={18} />
+            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'students-list' ? 'bg-[#1e40af] text-amber-400' : 'text-slate-400'}`}>
+              <Users size={18} />
             </div>
-            <span className={`text-[9.5px] mt-0.5 tracking-tight font-black uppercase ${activeTab === 'dashboard' ? 'text-amber-400' : 'text-slate-400'}`}>
-              Home
+            <span className={`text-[9px] mt-0.5 tracking-tight font-black uppercase ${activeTab === 'students-list' ? 'text-amber-400' : 'text-slate-400'}`}>
+              Student
             </span>
           </button>
 
-          {/* 2. RFID Cards printing / viewing button */}
+          {/* 2. Staff tab button */}
           <button
-            onClick={() => setActiveTab('id-cards')}
+            onClick={() => {
+              setActiveTab('staff-list');
+              setToastText("Opened Staff Directory");
+              setTimeout(() => setToastText(''), 2500);
+            }}
             className={`flex flex-col items-center justify-center flex-1 h-full select-none cursor-pointer border-none bg-transparent ${
-              activeTab === 'id-cards' ? 'text-white' : 'text-slate-400 hover:text-slate-200'
+              activeTab === 'staff-list' ? 'text-white' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'id-cards' ? 'bg-[#1e40af] text-amber-400' : 'text-slate-400'}`}>
-              <CreditCard size={18} />
+            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'staff-list' ? 'bg-[#1e40af] text-amber-400' : 'text-slate-400'}`}>
+              <UserCheck size={18} />
             </div>
-            <span className={`text-[9.5px] mt-0.5 tracking-tight font-black uppercase ${activeTab === 'id-cards' ? 'text-amber-400' : 'text-slate-400'}`}>
-              Cards
+            <span className={`text-[9px] mt-0.5 tracking-tight font-black uppercase ${activeTab === 'staff-list' ? 'text-amber-400' : 'text-slate-400'}`}>
+              Staff
             </span>
           </button>
 
           {/* 3. Central Scan [O] simulator button with glowing pulse wave effect */}
-          <div className="relative -mt-6 px-1.5 flex flex-col items-center justify-center">
+          <div className="relative -mt-6 px-1 flex flex-col items-center justify-center">
             <div className="absolute inset-0 bg-gradient-to-tr from-[#fbbf24] to-[#f59e0b] rounded-full blur-md opacity-35 scale-110 animate-pulse" />
             <button
               type="button"
               onClick={() => {
+                setActiveTab('student-staff-scan');
                 setScanStep(1);
                 setSelectedSimStudent(null);
                 setIsScanModalOpen(true);
               }}
-              className="relative w-14 h-14 rounded-full bg-gradient-to-tr from-[#fbbf24] via-[#f59e0b] to-[#fbbf24] flex items-center justify-center text-slate-950 font-black shadow-[0_8px_20px_rgba(245,158,11,0.45)] hover:scale-105 active:scale-95 transition-all outline-none border-none cursor-pointer"
+              className="relative w-12 h-12 rounded-full bg-gradient-to-tr from-[#fbbf24] via-[#f59e0b] to-[#fbbf24] flex items-center justify-center text-slate-950 font-black shadow-[0_8px_20px_rgba(245,158,11,0.45)] hover:scale-105 active:scale-95 transition-all outline-none border-none cursor-pointer"
               title="Open Gate Simulator"
               aria-label="Scanner tool"
             >
-              <QrCode size={20} className="text-slate-900 stroke-[2.5]" />
+              <QrCode size={18} className="text-slate-900 stroke-[2.5]" />
             </button>
-            <span className="text-[9.5px] mt-1 tracking-tight font-black text-amber-400 uppercase">
+            <span className="text-[9px] mt-1 tracking-tight font-black text-amber-400 uppercase">
               SCAN
             </span>
           </div>
 
-          {/* 4. Profile / Settings tab button */}
+          {/* 4. Parents tab button */}
           <button
-            onClick={() => setActiveTab('account')}
+            onClick={() => {
+              setActiveTab('parents-list');
+              setToastText("Opened Parent Guardians");
+              setTimeout(() => setToastText(''), 2500);
+            }}
             className={`flex flex-col items-center justify-center flex-1 h-full select-none cursor-pointer border-none bg-transparent ${
-              activeTab === 'account' ? 'text-white' : 'text-slate-400 hover:text-[#fbbf24]'
+              activeTab === 'parents-list' ? 'text-white' : 'text-slate-400 hover:text-[#fbbf24]'
             }`}
           >
-            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'account' ? 'bg-[#1e40af] text-amber-400' : 'text-slate-400'}`}>
-              <User size={18} />
+            <div className={`p-1.5 rounded-xl transition-all ${activeTab === 'parents-list' ? 'bg-[#1e40af] text-amber-400' : 'text-slate-400'}`}>
+              <ShieldAlert size={18} />
             </div>
-            <span className={`text-[9.5px] mt-0.5 tracking-tight font-black uppercase ${activeTab === 'account' ? 'text-amber-400' : 'text-slate-400'}`}>
-              Profile
+            <span className={`text-[9px] mt-0.5 tracking-tight font-black uppercase ${activeTab === 'parents-list' ? 'text-amber-400' : 'text-slate-400'}`}>
+              Parents
             </span>
           </button>
 
-          {/* 5. Secure Session Logout button */}
+          {/* 5. Draw / Modules Menu button */}
           <button
-            onClick={logout}
-            className="flex flex-col items-center justify-center flex-1 h-full select-none cursor-pointer border-none bg-transparent text-slate-400 hover:text-red-400"
-            title="Log out of Terminal"
+            onClick={() => setIsMobileMenuOpen(true)}
+            className="flex flex-col items-center justify-center flex-1 h-full select-none cursor-pointer border-none bg-transparent text-slate-400 hover:text-slate-200"
+            title="Open all tabs or modules"
           >
-            <div className="p-1.5 rounded-xl transition-all text-slate-400 hover:text-red-400 bg-slate-800/20">
-              <LogOut size={18} />
+            <div className="p-1.5 rounded-xl transition-all text-slate-400 hover:text-white bg-slate-800/25">
+              <Menu size={18} />
             </div>
-            <span className="text-[9.5px] mt-0.5 tracking-tight font-black uppercase text-slate-400">
-              Logout
+            <span className="text-[9px] mt-0.5 tracking-tight font-black uppercase text-slate-400">
+              All Tabs
             </span>
           </button>
 
@@ -1704,6 +1817,7 @@ export default function SchoolAdminDashboard() {
             {/* Quick Gate simulator launch trigger */}
             <button
               onClick={() => {
+                setActiveTab('student-staff-scan');
                 setScanStep(1);
                 setSelectedSimStudent(null);
                 setIsScanModalOpen(true);
@@ -1830,7 +1944,7 @@ export default function SchoolAdminDashboard() {
               </div>
               
               <div className="space-y-1">
-                <p className="text-[#fbbf24] text-xs font-semibold uppercase tracking-wider">MyEduRide Hub</p>
+                <p className="text-[#fbbf24] text-xs font-semibold uppercase tracking-wider">{schoolName || 'MyEduRide'} Hub</p>
                 <h3 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
                   {schoolName || 'Grand Elite Academic Center'}
                 </h3>
@@ -1873,7 +1987,10 @@ export default function SchoolAdminDashboard() {
                 {/* Simulated Glow Trigger Action tag */}
                 <button 
                   type="button" 
-                  onClick={() => setIsScanModalOpen(true)}
+                  onClick={() => {
+                    setActiveTab('student-staff-scan');
+                    setIsScanModalOpen(true);
+                  }}
                   className="mt-3 py-2 px-3 rounded-xl bg-white text-[#1e40af] hover:bg-[#fbbf24] hover:text-slate-950 text-xs font-extrabold flex items-center justify-center gap-1 cursor-pointer transition-colors border-none ring-0 focus:outline-none min-h-[40px]"
                 >
                   <span>Log Scan Now</span>
@@ -3106,7 +3223,7 @@ export default function SchoolAdminDashboard() {
           <div className="space-y-6 animate-in fade-in duration-200 text-left">
             <div>
               <h2 className="text-xl font-black text-slate-800 tracking-tight text-left">GUARDIAN & PARENT DATABASE</h2>
-              <p className="text-xs text-slate-505">Emergency notifications, active pickup authorization codes and linked pupils.</p>
+              <p className="text-xs text-slate-505">Emergency notifications, active pickup authorization codes and linked pupils. Click on a Parent's name to edit portal profile credentials.</p>
             </div>
 
             <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-xs">
@@ -3119,13 +3236,26 @@ export default function SchoolAdminDashboard() {
                       <th className="p-4">SMS Phone Parameter</th>
                       <th className="p-4">RFID Card Token Access</th>
                       <th className="p-4">Registry Rank</th>
+                      <th className="p-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50 text-xs">
                     {parentsList.map(prt => (
                       <tr key={prt.id} className="hover:bg-slate-50/40 transition-colors">
                         <td className="p-4">
-                          <p className="font-extrabold text-slate-850">{prt.name}</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingParent(prt);
+                              setEditParentFullName(prt.name || '');
+                              setEditParentUsername(prt.username || prt.name?.toLowerCase().replace(/\s+/g, '') || '');
+                              setEditParentEmail(prt.email || `${prt.name?.toLowerCase().replace(/\s+/g, '') || 'parent'}@myeduride.com`);
+                              setEditParentPassword('');
+                            }}
+                            className="font-extrabold text-[#1e40af] hover:underline bg-transparent border-none p-0 cursor-pointer text-left block"
+                          >
+                            {prt.name}
+                          </button>
                           <p className="text-[10px] text-slate-400 font-semibold">{prt.id}</p>
                         </td>
                         <td className="p-4 text-emerald-800 font-extrabold">{prt.student}</td>
@@ -3140,12 +3270,173 @@ export default function SchoolAdminDashboard() {
                             {prt.status}
                           </span>
                         </td>
+                        <td className="p-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingParent(prt);
+                              setEditParentFullName(prt.name || '');
+                              setEditParentUsername(prt.username || prt.name?.toLowerCase().replace(/\s+/g, '') || '');
+                              setEditParentEmail(prt.email || `${prt.name?.toLowerCase().replace(/\s+/g, '') || 'parent'}@myeduride.com`);
+                              setEditParentPassword('');
+                            }}
+                            className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] rounded-lg transition"
+                          >
+                            Edit Profile
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             </div>
+
+            {/* Parent Credentials Modification Modal Overlay */}
+            {editingParent && (
+              <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+                <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-xl max-w-md w-full space-y-4 animate-in zoom-in-95 duration-200 text-xs font-semibold text-slate-705 text-left">
+                  <div className="flex justify-between items-center border-b border-slate-50 pb-3">
+                    <div>
+                      <span className="text-[9px] font-black tracking-wider text-emerald-500 uppercase block mb-0.5">GUARDIAN PROFILE MANAGEMENT</span>
+                      <h3 className="font-extrabold text-slate-800 text-sm tracking-tight">Edit Credentials of {editingParent.name}</h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEditingParent(null)}
+                      className="text-slate-400 hover:text-slate-650 bg-transparent border-none cursor-pointer text-sm font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      if (!editParentUsername.trim()) {
+                        alert("Username is required!");
+                        return;
+                      }
+                      setEditingParentLoading(true);
+                      try {
+                        const updateResp = await fetch('/api/school-admin/users/update', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            target_user_id: editingParent.id,
+                            username: editParentUsername,
+                            full_name: editParentFullName,
+                            email: editParentEmail
+                          })
+                        });
+
+                        const updateData = await updateResp.json();
+                        if (!updateResp.ok) {
+                          throw new Error(updateData.error || 'Server rejected profile sync requests');
+                        }
+
+                        if (editParentPassword.trim()) {
+                          const pwdResp = await fetch('/api/school-admin/users/set-password', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              user_id: editingParent.id,
+                              password: editParentPassword,
+                              confirm_password: editParentPassword
+                            })
+                          });
+                          const pwdData = await pwdResp.json();
+                          if (!pwdResp.ok) {
+                            throw new Error(pwdData.error || 'Password update failed');
+                          }
+                        }
+
+                        setParentsList(prev => prev.map(p => {
+                          if (p.id === editingParent.id) {
+                            return {
+                              ...p,
+                              name: editParentFullName || p.name,
+                              username: editParentUsername || p.username,
+                              email: editParentEmail || p.email
+                            };
+                          }
+                          return p;
+                        }));
+
+                        setToastText(`Guardian credentials updated successfully!`);
+                        setEditingParent(null);
+                      } catch (err: any) {
+                        alert(err?.message || 'Details update failed');
+                      } finally {
+                        setEditingParentLoading(false);
+                      }
+                    }}
+                    className="space-y-4"
+                  >
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Guardian Full Name</label>
+                      <input
+                        type="text"
+                        value={editParentFullName}
+                        onChange={(e) => setEditParentFullName(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#1e40af]"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Profile Login Username</label>
+                      <input
+                        type="text"
+                        value={editParentUsername}
+                        onChange={(e) => setEditParentUsername(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:border-[#1e40af] font-mono"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Portal Email Address</label>
+                      <input
+                        type="email"
+                        value={editParentEmail}
+                        onChange={(e) => setEditParentEmail(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:border-[#1e40af] font-mono"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">New Secure Password Lock (Optional)</label>
+                      <input
+                        type="password"
+                        placeholder="Leave blank to preserve active password"
+                        value={editParentPassword}
+                        onChange={(e) => setEditParentPassword(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-250 rounded-xl focus:outline-none focus:border-[#1e40af]"
+                      />
+                    </div>
+
+                    <div className="flex gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditingParent(null)}
+                        className="flex-1 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-650 font-bold text-xs rounded-xl transition cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={editingParentLoading}
+                        className="flex-1 py-2.5 bg-[#1e40af] hover:bg-blue-800 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-sm transition border-none cursor-pointer"
+                      >
+                        {editingParentLoading ? 'Saving...' : 'Sync Profile'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -3700,6 +3991,46 @@ export default function SchoolAdminDashboard() {
               <p className="text-xs text-slate-505">Simulate smart RFID reader badge sweeps. Manually trigger transit events, track status, or capture snapshots.</p>
             </div>
 
+            {/* Global Gate Coordinator Controls */}
+            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black tracking-wider text-slate-400 uppercase flex items-center gap-1">
+                  <Landmark size={12} className="text-[#1e40af]" />
+                  <span>Configured School Gate</span>
+                </label>
+                <select
+                  value={scanGateName}
+                  onChange={(e) => setScanGateName(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:border-emerald-500 min-h-[40px] shadow-xs cursor-pointer"
+                >
+                  <option value="Main Assembly Gate">Main Assembly Gate</option>
+                  <option value="South Pedestrian Gate">South Pedestrian Gate</option>
+                  <option value="North Car-Park Gate">North Car-Park Gate</option>
+                  <option value="East Secondary Gate">East Secondary Gate</option>
+                  <option value="Administrative Office Corridor Check">Administrative Office Corridor Check</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black tracking-wider text-slate-400 uppercase flex items-center gap-1">
+                  <Users size={12} className="text-[#1e40af]" />
+                  <span>Gate Officer On Duty</span>
+                </label>
+                <select
+                  value={scanGateManagerId}
+                  onChange={(e) => setScanGateManagerId(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:border-emerald-500 min-h-[40px] shadow-xs cursor-pointer"
+                >
+                  <option value="">-- Auto terminal scan (No active supervisor) --</option>
+                  {staffList.map(st => (
+                    <option key={st.id} value={st.id}>
+                      {st.name} ({st.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             {/* Sub-tabs selectors */}
             <div className="flex border-b border-slate-100 gap-6">
               <button
@@ -3845,6 +4176,39 @@ export default function SchoolAdminDashboard() {
                           >
                             <span className="w-2 h-2 rounded-full bg-amber-500" />
                             Authorized Log Out (Out)
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5 flex items-center gap-1">
+                          <Camera size={11} className="text-blue-500 animate-pulse" />
+                          <span>Staff Facial ID Scanner Simulation</span>
+                        </label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setStaffSimulationFaceOutcome('pass')}
+                            className={`py-2 px-3 rounded-xl border font-bold text-xs cursor-pointer transition-all flex items-center justify-center gap-1.5 ${
+                              staffSimulationFaceOutcome === 'pass'
+                                ? 'bg-emerald-55/30 border-emerald-505 text-emerald-800 ring-2 ring-emerald-500/10'
+                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            <UserCheck size={12} className={staffSimulationFaceOutcome === 'pass' ? 'text-emerald-600' : 'text-slate-400'} />
+                            <span>Match (Pass)</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setStaffSimulationFaceOutcome('fail')}
+                            className={`py-2 px-3 rounded-xl border font-bold text-xs cursor-pointer transition-all flex items-center justify-center gap-1.5 ${
+                              staffSimulationFaceOutcome === 'fail'
+                                ? 'bg-rose-55/30 border-rose-505 text-rose-800 ring-2 ring-rose-500/10'
+                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            <ShieldAlert size={12} className={staffSimulationFaceOutcome === 'fail' ? 'text-rose-600' : 'text-slate-400'} />
+                            <span>Mismatch (Fail)</span>
                           </button>
                         </div>
                       </div>
@@ -4204,6 +4568,145 @@ export default function SchoolAdminDashboard() {
               </button>
             </div>
 
+            {/* School Profile & Custom Branding Controls */}
+            <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-xs max-w-2xl text-left space-y-4">
+              <div className="flex items-center gap-1.5 border-b border-slate-50 pb-2.5">
+                <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+                  <Landmark size={14} />
+                </div>
+                <h3 className="font-extrabold text-slate-800 text-xs tracking-wider uppercase">School Custom Branding Profile</h3>
+              </div>
+              <p className="text-xs text-slate-500 leading-normal">
+                Customize your academy registration profile, branding theme colour, logo badge, address location, and director signature displayed across matching ID credentials.
+              </p>
+
+              {schoolProfileSuccess && (
+                <div className="p-4 bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold rounded-2xl animate-pulse">
+                  {schoolProfileSuccess}
+                </div>
+              )}
+              {schoolProfileError && (
+                <div className="p-4 bg-rose-50 text-rose-800 border border-rose-200 text-xs font-bold rounded-2xl">
+                  {schoolProfileError}
+                </div>
+              )}
+
+              <form onSubmit={handleSaveSchoolProfile} className="space-y-4 text-xs font-semibold text-slate-700">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* School Name */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">School official name</label>
+                    <input
+                      type="text"
+                      required
+                      value={schoolName}
+                      onChange={(e) => setSchoolName(e.target.value)}
+                      placeholder="e.g. Greenwood Gate Academy"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-slate-800 focus:outline-none focus:border-[#1e40af]/30 min-h-[44px]"
+                    />
+                  </div>
+
+                  {/* School Theme Color */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase font-black">Branding theme color</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="color"
+                        value={schoolThemeColor || "#10b981"}
+                        onChange={(e) => setSchoolThemeColor(e.target.value)}
+                        className="w-12 h-11 p-1 bg-slate-50 border border-slate-100 rounded-xl cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={schoolThemeColor || "#10b981"}
+                        onChange={(e) => setSchoolThemeColor(e.target.value)}
+                        placeholder="#10b981"
+                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-slate-800 focus:outline-none min-h-[44px] text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* School Address */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Campus Location Address</label>
+                  <input
+                    type="text"
+                    value={schoolAddress}
+                    onChange={(e) => setSchoolAddress(e.target.value)}
+                    placeholder="e.g. Plot 15, Admiralty Road, Lekki Phase 1, Lagos"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-slate-800 focus:outline-none focus:border-[#1e40af]/30 min-h-[44px]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  {/* School Crest Logo */}
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">School Crest / Logo</label>
+                    <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setSchoolLogoUrl(reader.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="w-full text-[11px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-[#1e40af] file:text-white cursor-pointer"
+                      />
+                      {schoolLogoUrl && (
+                        <div className="shrink-0 w-10 h-10 rounded-lg overflow-hidden border border-emerald-400 bg-white shadow-sm">
+                          <img src={schoolLogoUrl} alt="Logo" className="w-full h-full object-cover" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* School Director Signature */}
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">Director / Principal Signature</label>
+                    <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setSchoolDirectorSignature(reader.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="w-full text-[11px] text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-[#1e40af] file:text-white cursor-pointer"
+                      />
+                      {schoolDirectorSignature && (
+                        <div className="shrink-0 w-12 h-8 rounded-lg overflow-hidden border border-amber-400 bg-white py-0.5 px-1 shadow-sm flex items-center justify-center">
+                          <img src={schoolDirectorSignature} alt="Signature" className="max-h-full max-w-full object-contain" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    disabled={savingSchoolProfile}
+                    className="px-5 py-2.5 bg-[#1e40af] hover:bg-[#1e3a8a] disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-xs cursor-pointer border-none transition"
+                  >
+                    {savingSchoolProfile ? "Saving branding parameters..." : "Save School Branding Profile"}
+                  </button>
+                </div>
+              </form>
+            </div>
+
             <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-xs max-w-2xl text-left space-y-4">
               <legend className="font-extrabold text-slate-800 text-xs tracking-wider uppercase mb-2 border-b border-slate-50 pb-2">Terminal Parameters Settings</legend>
               
@@ -4499,8 +5002,10 @@ export default function SchoolAdminDashboard() {
 
                               {/* Front School Crest/Logo */}
                               {cardShowLogo && (
-                                <div className="absolute right-8 top-12 w-48 h-48 opacity-[0.06] pointer-events-none z-0 text-slate-700">
-                                  {cardLogoType === 'shield_tribal' ? (
+                                <div className="absolute right-8 top-12 w-48 h-48 opacity-[0.08] pointer-events-none z-0 text-slate-700 flex items-center justify-center">
+                                  {schoolLogoUrl ? (
+                                    <img src={schoolLogoUrl} alt="Logo" className="w-full h-full object-contain grayscale opacity-80" />
+                                  ) : cardLogoType === 'shield_tribal' ? (
                                     <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full"><path d="M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10a10 10 0 0 0 10-10A10 10 0 0 0 12 2M12 4a2 2 0 1 1-2 2a2 2 0 0 1 2-2M8 12h8a4 4 0 0 1-4 4a4 4 0 0 1-4-4Z"/></svg>
                                   ) : (
                                     <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
@@ -4510,19 +5015,24 @@ export default function SchoolAdminDashboard() {
 
                               {/* Main School header block */}
                               <div 
-                                className="text-center pt-1.5 pl-[36px] pr-[116px] z-30 relative select-none"
+                                className="text-center pt-1.5 pl-[36px] pr-[116px] z-30 relative select-none flex items-center justify-center gap-2"
                                 style={{ 
                                   transform: `translate(${positions.schoolHeader.x}px, ${positions.schoolHeader.y}px)`
                                 }}
                               >
-                                <h3 className="font-extrabold tracking-tight leading-none block truncate text-slate-900" style={{ color: cardPrimaryColor, fontSize: `${placeholderSizes.schoolHeaderFontSize}px` }}>
-                                  {schoolName || 'GRAND ELITE ACADEMIC CENTER'}
-                                </h3>
-                                {cardShowAddress && (
-                                  <p className="text-[8.5px] text-slate-500 font-extrabold tracking-wider leading-none mt-1 uppercase truncate">
-                                    23 Evbuomwan St, GRA, Benin City
-                                  </p>
+                                {schoolLogoUrl && (
+                                  <img src={schoolLogoUrl} alt="School Crest" className="w-7 h-7 object-cover rounded-md shadow-xs shrink-0 bg-white p-0.5" />
                                 )}
+                                <div className="text-left">
+                                  <h3 className="font-extrabold tracking-tight leading-none block truncate text-slate-900 uppercase" style={{ color: cardPrimaryColor, fontSize: `${placeholderSizes.schoolHeaderFontSize}px` }}>
+                                    {schoolName || 'GRAND ELITE ACADEMIC CENTER'}
+                                  </h3>
+                                  {cardShowAddress && (
+                                    <p className="text-[8px] text-slate-500 font-bold tracking-wider leading-none mt-1 uppercase truncate max-w-[220px]">
+                                      {schoolAddress || '23 Evbuomwan St, GRA, Benin City'}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
 
                               {/* Large banner title pill */}
@@ -4710,19 +5220,21 @@ export default function SchoolAdminDashboard() {
                                 }}
                               >
                                 {/* Crest in Shield */}
-                                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-lg p-2" style={{ backgroundColor: cardPrimaryColor }}>
-                                  {cardLogoType === 'shield_tribal' ? (
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-full h-full"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM12 11h.01M10 8h4v4h-4z"/></svg>
+                                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white bg-white shadow-lg p-1.5 overflow-hidden border border-slate-100">
+                                  {schoolLogoUrl ? (
+                                    <img src={schoolLogoUrl} alt="Logo" className="w-full h-full object-cover" />
+                                  ) : cardLogoType === 'shield_tribal' ? (
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-full h-full text-emerald-600"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM12 11h.01M10 8h4v4h-4z"/></svg>
                                   ) : (
-                                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full text-[#1e40af]"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
                                   )}
                                 </div>
                                 
                                 <h4 className="text-[15px] font-extrabold tracking-tight mt-1.5 text-slate-900 uppercase leading-none" style={{ color: cardPrimaryColor }}>
                                   {schoolName || 'GRAND ELITE ACADEMIC CENTER'}
                                 </h4>
-                                <p className="text-[8.5px] text-slate-400 font-extrabold tracking-wider uppercase mt-1">
-                                  23 Evbuomwan St, GRA, Benin City
+                                <p className="text-[8px] text-slate-400 font-extrabold tracking-wider uppercase mt-1 truncate max-w-[320px]">
+                                  {schoolAddress || '23 Evbuomwan St, GRA, Benin City'}
                                 </p>
                               </div>
 
@@ -4738,10 +5250,14 @@ export default function SchoolAdminDashboard() {
                                   <span className="text-[8.5px] font-black uppercase text-slate-400 tracking-wider mb-0.5">Authorised Signature</span>
                                   {cardShowSignature ? (
                                     <div className="w-full h-11 bg-slate-50 border border-slate-200/80 rounded-lg flex flex-col items-center justify-center p-0.5 shadow-inner relative overflow-hidden">
-                                      <svg viewBox="0 0 100 35" className="w-24 h-7 text-[#1e40af] fill-none stroke-current" strokeWidth="1.8" strokeLinecap="round">
-                                        <path d="M10 25 C25 5, 45 30, 50 15 C55 4, 75 8, 85 20 M35 15 L65 15" />
-                                      </svg>
-                                      <span className="text-[7px] font-bold text-slate-500 absolute bottom-0.5 font-sans leading-none">Principal</span>
+                                      {schoolDirectorSignature ? (
+                                        <img src={schoolDirectorSignature} alt="Signature Logo" className="max-h-7 max-w-full object-contain pointer-events-none" />
+                                      ) : (
+                                        <svg viewBox="0 0 100 35" className="w-24 h-7 text-[#1e40af] fill-none stroke-current" strokeWidth="1.8" strokeLinecap="round">
+                                          <path d="M10 25 C25 5, 45 30, 50 15 C55 4, 75 8, 85 20 M35 15 L65 15" />
+                                        </svg>
+                                      )}
+                                      <span className="text-[7.5px] font-black text-slate-500 absolute bottom-0.5 font-sans leading-none uppercase">Director</span>
                                     </div>
                                   ) : (
                                     <div className="w-full h-11 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 text-[8px] font-bold uppercase border border-dashed border-slate-300">
@@ -5548,7 +6064,7 @@ export default function SchoolAdminDashboard() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsMobileMenuOpen(false)}
-              className="absolute inset-0 bg-[#020617]/60 backdrop-blur-sm z-50"
+              className="absolute inset-0 bg-slate-950/70"
               id="mobile-drawer-backdrop-school"
             />
             
@@ -5558,17 +6074,23 @@ export default function SchoolAdminDashboard() {
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="relative w-80 max-w-[85vw] h-full bg-[#0a1424] border-r border-slate-800 text-slate-100 flex flex-col justify-between py-6 shadow-2xl z-55 overflow-y-auto"
+              className="relative w-80 max-w-[85vw] h-full bg-[#0a152e] border-r border-slate-800 text-slate-100 flex flex-col justify-between py-6 shadow-2xl overflow-y-auto z-10"
               id="mobile-drawer-sheet-school"
             >
               <div>
                 <div className="px-6 pb-5 flex items-center justify-between border-b border-slate-800/80">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-lg bg-[#fbbf24] flex items-center justify-center text-slate-950 font-black">
-                      <School size={14} />
-                    </div>
+                    {schoolLogoUrl ? (
+                      <div className="w-7 h-7 rounded-lg overflow-hidden shrink-0">
+                        <img src={schoolLogoUrl} alt="Logo" className="w-full h-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="w-7 h-7 rounded-lg bg-[#fbbf24] flex items-center justify-center text-slate-950 font-black">
+                        <School size={14} />
+                      </div>
+                    )}
                     <div className="text-left">
-                      <h4 className="text-[11px] font-black text-white uppercase tracking-wider leading-none truncate max-w-[120px]">{schoolName || 'MYEDURIDE'}</h4>
+                      <h4 className="text-[11px] font-black text-white uppercase tracking-wider leading-none truncate max-w-[124px]">{schoolName || 'MYEDURIDE'}</h4>
                       <p className="text-[9px] text-amber-400 font-bold uppercase mt-1 leading-none">SCHOOL ADMIN</p>
                     </div>
                   </div>

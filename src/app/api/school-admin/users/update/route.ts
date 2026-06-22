@@ -12,12 +12,29 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { username, full_name, email, title, photo_base64 } = await request.json();
-    const targetUserId = session.user_id;
+    const { username, full_name, email, title, photo_base64, target_user_id } = await request.json();
+    let targetUserId = session.user_id;
+
+    // Check if school admin is updating another user
+    if (target_user_id && target_user_id !== session.user_id) {
+      const schoolIds = Array.from(
+        new Set(
+          (session.roles || [])
+            .filter((r: any) => r.role === 'school_admin')
+            .map((r: any) => r.school_id)
+            .filter(Boolean)
+        )
+      );
+      if (schoolIds.length === 0) {
+        return NextResponse.json({ error: 'School admin access is required to modify other profiles' }, { status: 403 });
+      }
+      targetUserId = target_user_id;
+    }
 
     if (!isSupabaseConfigured()) {
       // Sandbox Mode: Simulate saving details in response
       const updatedUser = {
+        id: targetUserId,
         username: username || session.username,
         full_name: full_name || session.full_name,
         email: email || session.email,
@@ -36,7 +53,7 @@ export async function POST(request: NextRequest) {
     const updates: Record<string, any> = {};
 
     // 1. Username validations (if changed)
-    if (username !== undefined && username.toLowerCase().trim() !== session.username?.toLowerCase()?.trim()) {
+    if (username !== undefined) {
       const cleanUsername = username.toLowerCase().trim();
       if (cleanUsername) {
         if (cleanUsername.length < 3 || cleanUsername.length > 32) {
@@ -67,10 +84,6 @@ export async function POST(request: NextRequest) {
 
     if (email !== undefined && email !== null) {
       updates.email = email.trim();
-    }
-
-    if (title !== undefined && title !== null) {
-      updates.title = title.trim();
     }
 
     // 3. Photo upload to private storage bucket 'photos'
@@ -109,39 +122,46 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 4. Update Database Table 'user_profiles'
-    let dbUpdateErrorType = null;
+    // 4. Update Database Table 'user_profiles' (making sure we don't accidentally send unmapped columns)
+    const dbParams: Record<string, any> = {};
+    if (updates.username !== undefined) dbParams.username = updates.username;
+    if (updates.full_name !== undefined) dbParams.full_name = updates.full_name;
+    if (updates.email !== undefined) dbParams.email = updates.email;
+
     const { error: updateErr } = await supabase
       .from('user_profiles')
-      .update(updates)
+      .update(dbParams)
       .eq('id', targetUserId);
 
     if (updateErr) {
-      console.warn('[POST users/update] DB primary update failed, falling back:', updateErr.message);
-      
-      // Fallback: Remove non-existent columns (photo_url or title) and update remaining clean fields
-      const { photo_url, title: titleVal, ...partialUpdates } = updates;
-      const { error: retryErr } = await supabase
-        .from('user_profiles')
-        .update(partialUpdates)
-        .eq('id', targetUserId);
-
-      if (retryErr) {
-        return NextResponse.json({ error: retryErr.message }, { status: 500 });
-      }
-      dbUpdateErrorType = 'partial_columns_missing';
+      console.error('[POST users/update] DB primary update failed:', updateErr.message);
+      return NextResponse.json({ error: updateErr.message }, { status: 500 });
     }
 
-    // 5. Hard synchronization with standard Supabase Auth user metadata
-    // This makes sure both the title, photo_url, and full_name are fully saved in auth JSON format
+    // Also update any photo_url if exists
+    if (updates.photo_url) {
+      await supabase
+        .from('user_profiles')
+        .update({ photo_url: updates.photo_url })
+        .eq('id', targetUserId)
+        .catch(() => {});
+    }
+
+    // 5. Hard synchronization with standard Supabase Auth user database to update email/username/metadata
     const metaUpdates: Record<string, any> = {};
     if (full_name !== undefined && full_name !== null) metaUpdates.full_name = full_name.trim();
     if (title !== undefined && title !== null) metaUpdates.title = title.trim();
     if (finalPhotoUrl) metaUpdates.photo_url = finalPhotoUrl;
 
-    const { error: authErr } = await supabase.auth.admin.updateUserById(targetUserId, {
-      user_metadata: metaUpdates,
-    });
+    const authUpdates: Record<string, any> = {
+      user_metadata: metaUpdates
+    };
+    if (email !== undefined && email !== null) {
+      authUpdates.email = email.trim();
+      authUpdates.email_confirm = true; // Auto-confirm email update
+    }
+
+    const { error: authErr } = await supabase.auth.admin.updateUserById(targetUserId, authUpdates);
 
     if (authErr) {
       console.error('[POST users/update] Auth user metadata sync failed:', authErr.message);
@@ -154,7 +174,7 @@ export async function POST(request: NextRequest) {
         photo_url: finalPhotoUrl || updates.photo_url || null,
         title: title || updates.title || null
       },
-      db_status: dbUpdateErrorType || 'synced'
+      db_status: 'synced'
     });
   } catch (err: any) {
     console.error('[POST users/update] General Exception:', err);

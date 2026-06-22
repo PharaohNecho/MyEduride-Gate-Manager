@@ -27,6 +27,39 @@ export default function ReadyForPickupPanel({ schoolId }: { schoolId: string }) 
 
   useEffect(() => {
     loadReadyStudents();
+
+    // 5-second poll fallback
+    const interval = setInterval(() => {
+      loadReadyStudents();
+    }, 5000);
+
+    // Supabase Realtime subscription
+    let subscription: any = null;
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      subscription = supabase
+        .channel('dismissal_requests_ready')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'dismissal_requests',
+            filter: `school_id=eq.${schoolId}`
+          },
+          () => {
+            loadReadyStudents();
+          }
+        )
+        .subscribe();
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (subscription) {
+        subscription.unsubscribe();
+      }
+    };
   }, [schoolId]);
 
   const loadReadyStudents = async () => {

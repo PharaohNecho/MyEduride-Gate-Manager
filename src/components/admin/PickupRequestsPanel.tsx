@@ -29,6 +29,39 @@ export default function PickupRequestsPanel({ schoolId }: { schoolId: string }) 
   useEffect(() => {
     setSupabaseConfigured(isSupabaseConfigured());
     loadRequests();
+
+    // 5-second poll fallback
+    const interval = setInterval(() => {
+      loadRequests();
+    }, 5000);
+
+    // Supabase Realtime subscription
+    let subscription: any = null;
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      subscription = supabase
+        .channel('dismissal_requests_panel')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'dismissal_requests',
+            filter: `school_id=eq.${schoolId}`
+          },
+          () => {
+            loadRequests();
+          }
+        )
+        .subscribe();
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (subscription) {
+        subscription.unsubscribe();
+      }
+    };
   }, [schoolId]);
 
   const loadRequests = async () => {

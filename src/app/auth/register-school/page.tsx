@@ -50,6 +50,7 @@ const CAROUSEL_SLIDES = [
 
 export default function RegisterSchoolPage() {
   const [schoolName, setSchoolName] = useState('');
+  const [schoolLogo, setSchoolLogo] = useState('');
   const [adminFullName, setAdminFullName] = useState('');
   const [adminUsername, setAdminUsername] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
@@ -71,8 +72,8 @@ export default function RegisterSchoolPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!schoolName.trim() || !adminFullName.trim() || !adminUsername.trim() || !adminPassword.trim()) {
-      setError('Please fill in all required fields.');
+    if (!schoolName.trim() || !schoolLogo.trim() || !adminFullName.trim() || !adminUsername.trim() || !adminPassword.trim()) {
+      setError('Please fill in all required fields, including uploading the school logo.');
       return;
     }
 
@@ -102,6 +103,7 @@ export default function RegisterSchoolPage() {
           adminUsername,
           adminPassword,
           welcomeMessage,
+          logoUrl: schoolLogo,
         }),
       });
 
@@ -246,6 +248,33 @@ export default function RegisterSchoolPage() {
                           placeholder="Greenwood Academy"
                           className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#1e3a8a] focus:bg-white transition"
                         />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">School Logo * <span className="text-[9px] text-slate-400 lowercase">(Required image upload)</span></label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          required
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                setSchoolLogo(reader.result as string);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-[#1e3a8a] file:text-white file:cursor-pointer hover:file:opacity-90 transition"
+                        />
+                        {schoolLogo && (
+                          <div className="shrink-0 w-8 h-8 rounded-lg overflow-hidden border border-emerald-500 bg-white">
+                            <img src={schoolLogo} alt="Logo" className="w-full h-full object-cover" />
+                          </div>
+                        )}
                       </div>
                     </div>
 

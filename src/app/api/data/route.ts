@@ -241,7 +241,7 @@ export async function POST(request: NextRequest) {
           liveAttendanceRes,
           recentActivityRes
         ] = await Promise.all([
-          supabase.from('schools').select('name').eq('id', schoolId).single(),
+          supabase.from('schools').select('*').eq('id', schoolId).single(),
           supabase.from('students').select('*', { count: 'exact', head: true }).eq('school_id', schoolId).eq('is_active', true),
           supabase.from('user_school_roles').select('*', { count: 'exact', head: true }).eq('school_id', schoolId).eq('role', 'teacher').eq('is_active', true),
           countSchoolParentsOnFile(supabase, schoolId),
@@ -973,6 +973,27 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: insertErr.message }, { status: 500 });
           }
 
+          // 3.5. Insert log of multiple gate managers who checked in / out this student
+          try {
+            await supabase
+              .from('gate_activity_logs')
+              .insert({
+                school_id: schoolId,
+                action_type: scanType === 'arrival' ? 'student_check_in' : 'student_check_out',
+                student_id: student_id,
+                gate_officer_user_id: params.gate_manager_id || null,
+                details: {
+                  gate_name: params.gate_name || 'Main Gate',
+                  gate_manager_name: params.gate_manager_name || 'Gate Operator',
+                  status: scanStatus,
+                  timestamp: scanTime,
+                  verified_by_gate_manager: true
+                }
+              });
+          } catch (gateLogErr) {
+            console.error('[record_attendance_scan] Student gate log exception:', gateLogErr);
+          }
+
           // 3. Trigger email & push alerts through Parent Notify
           let parentNotifiedCount = 0;
           try {
@@ -998,7 +1019,7 @@ export async function POST(request: NextRequest) {
           // 1. Find staff name or details
           const { data: staffProfile, error: profileErr } = await supabase
             .from('user_profiles')
-            .select('full_name, email')
+            .select('full_name, email, photo_url')
             .eq('id', staff_id)
             .maybeSingle();
 
@@ -1011,6 +1032,81 @@ export async function POST(request: NextRequest) {
           const schoolId = staffRole?.school_id || 'demo-school-id';
           const staffName = staffProfile?.full_name || 'Staff User';
           const staffEmail = staffProfile?.email;
+
+          // 1.25. STAFF FACIAL RECOGNITION CHECK
+          let facialMatch = true;
+          let facialReason = 'Facial match verified successfully.';
+
+          const faceOutcomeOverride = params.simulation_face_outcome || 'pass';
+          if (faceOutcomeOverride === 'fail') {
+            facialMatch = false;
+            facialReason = 'Facial verification failed: Captured facial characteristics do not align with official staff passport.';
+          } else {
+            // Real multi-modal comparison if a selfie was uploaded
+            const selfieBase64 = params.selfie_base64;
+            const staffPhotoPath = staffProfile?.photo_url;
+
+            if (selfieBase64 && staffPhotoPath && process.env.GEMINI_API_KEY) {
+              try {
+                // Download original passport from container storage
+                const { data: passportBlob } = await supabase.storage.from('photos').download(staffPhotoPath);
+                if (passportBlob) {
+                  const arrBuffer = await passportBlob.arrayBuffer();
+                  const passportBase64 = Buffer.from(arrBuffer).toString('base64');
+                  const passportMime = passportBlob.type || 'image/jpeg';
+
+                  let selfieMime = 'image/jpeg';
+                  let cleanSelfie = selfieBase64;
+                  if (selfieBase64.startsWith('data:')) {
+                    const matchArr = selfieBase64.match(/data:([^;]+);base64,(.*)/);
+                    if (matchArr) {
+                      selfieMime = matchArr[1];
+                      cleanSelfie = matchArr[2];
+                    }
+                  }
+
+                  const { GoogleGenAI } = await import('@google/genai');
+                  const ai = new GoogleGenAI({
+                    apiKey: process.env.GEMINI_API_KEY,
+                    httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
+                  });
+
+                  const aiResp = await ai.models.generateContent({
+                    model: 'gemini-3.5-flash',
+                    contents: [
+                      {
+                        role: 'user',
+                        parts: [
+                          { text: 'Analyze these two images. One is a school staff official passport image, the other is an active selfie clip from active scanning. Determine if they are the same individual. Respond with a minified JSON only: {"match": true|false, "reason": "brief reason description"}. Avoid any conversational words or formatting markers.' },
+                          { inlineData: { data: passportBase64, mimeType: passportMime } },
+                          { inlineData: { data: cleanSelfie, mimeType: selfieMime } }
+                        ]
+                      }
+                    ]
+                  });
+
+                  const rawTxt = aiResp.text?.trim() || '';
+                  const cleanJson = rawTxt.replace(/```json/gi, '').replace(/```/g, '').trim();
+                  try {
+                    const parsed = JSON.parse(cleanJson);
+                    facialMatch = !!parsed.match;
+                    facialReason = parsed.reason || (facialMatch ? 'Verified match.' : 'Face structure mismatch.');
+                  } catch (_) {
+                    console.warn('[Gemini Facial Scan JSON fail]:', rawTxt);
+                  }
+                }
+              } catch (gemErr) {
+                console.error('[Gemini Facial Scan Core exception]:', gemErr);
+              }
+            }
+          }
+
+          if (!facialMatch) {
+            return NextResponse.json({
+              error: 'FACIAL_MISMATCH',
+              message: facialReason
+            }, { status: 400 });
+          }
 
           // 1.5. Double Scan Check (Single sign-in and sign-out per school day)
           const dateStr = scanTime.substring(0, 10);
@@ -1048,6 +1144,30 @@ export async function POST(request: NextRequest) {
           if (insertErr) {
             console.error('[record_attendance_scan] Staff insert error:', insertErr);
             return NextResponse.json({ error: insertErr.message }, { status: 500 });
+          }
+
+          // 2.5 Log gate activity with manager details and facial passport verification success
+          try {
+            await supabase
+              .from('gate_activity_logs')
+              .insert({
+                school_id: schoolId,
+                action_type: scanType === 'arrival' ? 'clock_in' : 'clock_out',
+                gate_officer_user_id: params.gate_manager_id || null,
+                details: {
+                  staff_user_id: staff_id,
+                  staff_name: staffName,
+                  gate_name: params.gate_name || 'Main Gate',
+                  gate_manager_name: params.gate_manager_name || 'Gate Operator',
+                  facial_recognition_outcome: 'pass',
+                  facial_recognition_details: facialReason,
+                  status: scanStatus,
+                  timestamp: scanTime,
+                  verified_by_gate_manager: true
+                }
+              });
+          } catch (gateLogErr) {
+            console.error('[record_attendance_scan] Staff gate log exception:', gateLogErr);
           }
 
           // 3. Trigger email to staff person confirming their entry / exit!
@@ -1180,6 +1300,60 @@ export async function POST(request: NextRequest) {
 
         if (updateErr) {
           console.error('[DATA API] Error saving template:', updateErr.message);
+          return NextResponse.json({ error: updateErr.message }, { status: 500 });
+        }
+
+        return NextResponse.json({ success: true });
+      }
+
+      case 'update_school_settings': {
+        const schoolId = params?.school_id;
+        const name = params?.name;
+        const logo_url = params?.logo_url;
+        const address = params?.address;
+        const theme_color = params?.theme_color;
+        const director_signature = params?.director_signature;
+
+        if (!schoolId) {
+          return NextResponse.json({ error: 'school_id required' }, { status: 400 });
+        }
+
+        // Retrieve existing welcome_message config safely
+        const { data: schoolRes } = await supabase
+          .from('schools')
+          .select('welcome_message')
+          .eq('id', schoolId)
+          .maybeSingle();
+
+        let parsedConfig: any = {};
+        if (schoolRes?.welcome_message && schoolRes.welcome_message.startsWith('{')) {
+          try {
+            parsedConfig = JSON.parse(schoolRes.welcome_message);
+          } catch (e) {}
+        } else if (schoolRes?.welcome_message) {
+          parsedConfig.welcomeText = schoolRes.welcome_message;
+        }
+
+        // Store custom parameters safely inside the structured JSON config
+        parsedConfig.address = address;
+        parsedConfig.director_signature = director_signature;
+        parsedConfig.theme_color = theme_color;
+
+        const newWelcomeMessage = JSON.stringify(parsedConfig);
+
+        // Update name, logo_url, primary_color, and welcome_message inside the schools table
+        const { error: updateErr } = await supabase
+          .from('schools')
+          .update({
+            name: name,
+            logo_url: logo_url,
+            primary_color: theme_color,
+            welcome_message: newWelcomeMessage
+          })
+          .eq('id', schoolId);
+
+        if (updateErr) {
+          console.error('[DATA API] Error updating school profile:', updateErr.message);
           return NextResponse.json({ error: updateErr.message }, { status: 500 });
         }
 

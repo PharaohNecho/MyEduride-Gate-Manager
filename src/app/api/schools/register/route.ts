@@ -109,6 +109,7 @@ export async function POST(request: NextRequest) {
         approval_status: 'approved', // Auto-approved for frictionless onboarding, as requested
         welcome_message: welcomeMessage,
         primary_color: '#10b981',
+        logo_url: body.logoUrl || null,
       });
 
     if (schoolInsErr) {
