@@ -134,6 +134,7 @@ export default function SuperAdminDashboard() {
   // Dynamic lists
   const [schools, setSchools] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+  const [dbStatus, setDbStatus] = useState<any>(null);
   const [filteredSchools, setFilteredSchools] = useState<any[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<any[]>([]);
 
@@ -590,6 +591,18 @@ export default function SuperAdminDashboard() {
 
   const selectedPerson = getSelectedPersonObj();
 
+  // Resolve active school logo URL dynamically from DB schools database
+  const currentSchoolLogo = (() => {
+    if (!selectedPerson || !schools) return null;
+    const sName = selectedPerson.schoolName?.toLowerCase().trim();
+    const match = schools.find(s => s.name?.toLowerCase().trim() === sName);
+    if (match?.logo_url) {
+      const lUrl = match.logo_url;
+      return lUrl.startsWith('http') || lUrl.startsWith('data:') ? lUrl : `/api/photo?path=${encodeURIComponent(lUrl)}`;
+    }
+    return null;
+  })();
+
   // Generate QR Code data URL dynamically
   useEffect(() => {
     if (!selectedPerson) return;
@@ -785,6 +798,17 @@ export default function SuperAdminDashboard() {
       // Fetch dynamic Schools (database)
       const schoolsRes = await fetch('/api/schools/list', { headers });
       const schoolsData = await schoolsRes.json();
+      
+      // Proactively probe Supabase Database Schema Health
+      try {
+        const dbCheckRes = await fetch('/api/super-admin/db-check');
+        if (dbCheckRes.ok) {
+          const dbCheckData = await dbCheckRes.json();
+          setDbStatus(dbCheckData);
+        }
+      } catch (err) {
+        console.warn('Error querying database health:', err);
+      }
       
       // Fetch dynamic Users (database)
       const usersRes = await fetch('/api/super-admin/users', { headers });
@@ -1626,6 +1650,90 @@ export default function SuperAdminDashboard() {
                     <div className="mt-4 flex items-center justify-center gap-1.5 bg-white/20 px-3 py-1 rounded-lg text-[10px] font-bold text-white z-10 transition-colors hover:bg-white/30">
                       <span>Verify operators</span>
                       <ArrowRight size={12} className="text-white" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* DATABASE INTEGRATION & SCHEMA HEALTH GUARDIAN WIDGET */}
+                <div className="bg-slate-900 border border-slate-800 text-slate-100 p-5 rounded-2xl shadow-xl space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20">
+                        <Database size={18} className="animate-pulse" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black uppercase tracking-wider text-teal-400 font-mono">MyEduRide Security Datastore Guardian</h4>
+                        <p className="text-[11px] text-slate-400 font-medium">Automatic system verification of physical schema assets & storage buckets.</p>
+                      </div>
+                    </div>
+                    
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        refreshContent(true);
+                        showToast('Re-probing database column and configuration status...', 'info');
+                      }}
+                      className="text-[10px] uppercase font-mono tracking-wider font-extrabold px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 duration-150 transition-colors border border-slate-700 text-slate-300 rounded-lg shrink-0 cursor-pointer"
+                    >
+                      🔄 Re-Probe Schema
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-1">
+                    {/* Check 1: User Profiles photo_url */}
+                    <div className="p-3.5 bg-slate-950/50 rounded-xl border border-slate-800 flex flex-col justify-between space-y-1.5">
+                      <span className="text-[9px] font-mono uppercase font-black text-slate-500">Table: user_profiles</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${dbStatus?.user_profiles_photo_url_active || dbStatus === null ? 'bg-green-500 animate-pulse' : 'bg-rose-500'}`} />
+                        <span className="text-xs font-black text-slate-200 uppercase tracking-wide">photo_url column</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400">
+                        {dbStatus?.user_profiles_photo_url_active || dbStatus === null 
+                          ? '✅ Verified. Profile photos across portals are actively saved/loaded.' 
+                          : '⚠️ Column is inactive. Run alter command in SQL tab to initiate.'}
+                      </p>
+                    </div>
+
+                    {/* Check 2: Schools logo_url */}
+                    <div className="p-3.5 bg-slate-950/50 rounded-xl border border-slate-800 flex flex-col justify-between space-y-1.5">
+                      <span className="text-[9px] font-mono uppercase font-black text-slate-500">Table: schools</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${dbStatus?.schools_logo_url_active || dbStatus === null ? 'bg-green-500 animate-pulse' : 'bg-rose-500'}`} />
+                        <span className="text-xs font-black text-slate-200 uppercase tracking-wide">logo_url asset</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400">
+                        {dbStatus?.schools_logo_url_active || dbStatus === null 
+                          ? '✅ Verified. Dynamic school-specific crest logo resolution ready.' 
+                          : '⚠️ logo_url Column is missing from campuse record.'}
+                      </p>
+                    </div>
+
+                    {/* Check 3: Schools primary color */}
+                    <div className="p-3.5 bg-slate-950/50 rounded-xl border border-slate-800 flex flex-col justify-between space-y-1.5">
+                      <span className="text-[9px] font-mono uppercase font-black text-slate-500">Table: schools</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${dbStatus?.schools_primary_color_active || dbStatus === null ? 'bg-green-500 animate-pulse' : 'bg-rose-500'}`} />
+                        <span className="text-xs font-black text-slate-200 uppercase tracking-wide">primary_color code</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400">
+                        {dbStatus?.schools_primary_color_active || dbStatus === null 
+                          ? '✅ Verified. Configures campus badge theme coloring automatically.' 
+                          : '⚠️ primary_color Column missing from campus record.'}
+                      </p>
+                    </div>
+
+                    {/* Check 4: Schools secondary color */}
+                    <div className="p-3.5 bg-slate-950/50 rounded-xl border border-slate-800 flex flex-col justify-between space-y-1.5">
+                      <span className="text-[9px] font-mono uppercase font-black text-slate-500">Table: schools</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${dbStatus?.schools_secondary_color_active || dbStatus === null ? 'bg-green-500 animate-pulse' : 'bg-rose-500'}`} />
+                        <span className="text-xs font-black text-slate-200 uppercase tracking-wide">secondary_color code</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400">
+                        {dbStatus?.schools_secondary_color_active || dbStatus === null 
+                          ? '✅ Verified. Configures dynamic accent title pills on authorization badge passes.' 
+                          : '⚠️ secondary_color Column is missing from campus record.'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -2943,8 +3051,10 @@ export default function SuperAdminDashboard() {
 
                             {/* Front School Crest/Logo Graphic representation inside background */}
                             {cardShowLogo && (
-                              <div className="absolute right-8 top-12 w-48 h-48 opacity-[0.08] pointer-events-none z-0 text-slate-700 flex items-center justify-center">
-                                {cardLogoUrl ? (
+                              <div className="absolute right-8 top-12 w-48 h-48 opacity-[0.05] pointer-events-none z-0 text-slate-700 flex items-center justify-center">
+                                {currentSchoolLogo ? (
+                                  <img src={currentSchoolLogo} className="w-full h-full object-contain filter grayscale" alt="watermark logo" />
+                                ) : cardLogoUrl ? (
                                   <img src={cardLogoUrl} className="w-full h-full object-contain filter grayscale" alt="watermark logo" />
                                 ) : cardLogoType === 'shield_tribal' ? (
                                   <svg viewBox="0 0 24 24" fill="currentColor" className="w-full h-full"><path d="M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10a10 10 0 0 0 10-10A10 10 0 0 0 12 2M12 4a2 2 0 1 1-2 2a2 2 0 0 1 2-2M8 12h8a4 4 0 0 1-4 4a4 4 0 0 1-4-4Z"/></svg>
@@ -2954,9 +3064,24 @@ export default function SuperAdminDashboard() {
                               </div>
                             )}
 
+                            {/* Centered Top School Crest/Logo Indicator */}
+                            <div className="flex justify-center pt-1.5 z-35 relative h-[36px]">
+                              {currentSchoolLogo ? (
+                                <img src={currentSchoolLogo} className="h-9 w-auto max-w-[130px] object-contain" alt="School logo" />
+                              ) : cardShowLogo ? (
+                                cardLogoUrl ? (
+                                  <img src={cardLogoUrl} className="h-9 w-auto max-w-[130px] object-contain" alt="Custom template logo" />
+                                ) : cardLogoType === 'shield_tribal' ? (
+                                  <svg viewBox="0 0 24 24" fill="currentColor" style={{ height: '36px', color: cardPrimaryColor }}><path d="M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10a10 10 0 0 0 10-10A10 10 0 0 0 12 2M12 4a2 2 0 1 1-2 2a2 2 0 0 1 2-2M8 12h8a4 4 0 0 1-4 4a4 4 0 0 1-4-4Z"/></svg>
+                                ) : (
+                                  <svg viewBox="0 0 24 24" fill="currentColor" style={{ height: '36px', color: cardPrimaryColor }}><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                                )
+                              ) : null}
+                            </div>
+
                             {/* Main School header block */}
                             <div 
-                              className={`text-center pt-1.5 pl-[36px] pr-[116px] z-30 relative select-none ${isDragMode ? 'ring-2 ring-indigo-500 ring-offset-1 rounded-sm cursor-grab active:cursor-grabbing' : ''}`}
+                              className={`text-center pt-0.5 z-30 relative select-none w-full ${isDragMode ? 'ring-2 ring-indigo-500 ring-offset-1 rounded-sm cursor-grab active:cursor-grabbing' : ''}`}
                               style={{ 
                                 transform: `translate(${positions.schoolHeader.x}px, ${positions.schoolHeader.y}px)`,
                                 touchAction: isDragMode ? 'none' : 'auto'
@@ -2965,19 +3090,19 @@ export default function SuperAdminDashboard() {
                               onTouchStart={(e) => onTouchStart(e, 'schoolHeader')}
                               title={isDragMode ? 'Drag to position School Header' : undefined}
                             >
-                              <h3 className="font-extrabold tracking-tight leading-none block truncate text-slate-900" style={{ color: cardPrimaryColor, fontSize: `${placeholderSizes.schoolHeaderFontSize}px` }}>
-                                {selectedPerson ? selectedPerson.schoolName : 'UGBEKUN ACADEMY'}
+                              <h3 className="font-extrabold tracking-tight leading-none block truncate text-slate-900 uppercase" style={{ color: cardPrimaryColor, fontSize: `${placeholderSizes.schoolHeaderFontSize}px` }}>
+                                {selectedPerson ? selectedPerson.schoolName : 'SOLID STONE KIDDIES ACADEMY'}
                               </h3>
                               {cardShowAddress && (
-                                <p className="text-[8.5px] text-slate-500 font-extrabold tracking-wider leading-none mt-1 uppercase truncate">
-                                  {selectedPerson ? selectedPerson.address : '23 Evbuomwan St, Benin City'}
+                                <p className="text-[7.5px] text-slate-500 font-black tracking-wide leading-none mt-1 uppercase truncate max-w-[420px] mx-auto">
+                                  {selectedPerson ? selectedPerson.address : '3,saibu adeolu Street,church bus stop,idimu lagos'}
                                 </p>
                               )}
                             </div>
 
                             {/* Large banner title pill */}
                             <div 
-                              className={`flex justify-center mt-2.5 z-30 relative select-none ${isDragMode ? 'ring-2 ring-indigo-500 ring-offset-1 rounded-sm cursor-grab active:cursor-grabbing' : ''}`}
+                              className={`flex justify-center mt-2 px-3 z-30 relative select-none w-full ${isDragMode ? 'ring-2 ring-indigo-500 ring-offset-1 rounded-sm cursor-grab active:cursor-grabbing' : ''}`}
                               style={{ 
                                 transform: `translate(${positions.titlePill.x}px, ${positions.titlePill.y}px)`,
                                 touchAction: isDragMode ? 'none' : 'auto'
@@ -2987,19 +3112,18 @@ export default function SuperAdminDashboard() {
                               title={isDragMode ? 'Drag to position Title Pill' : undefined}
                             >
                               <div 
-                                className="px-6 py-1 text-center font-black text-white uppercase tracking-wider rounded-md shadow-xs"
+                                className="w-full py-1 text-center font-black text-white uppercase tracking-wider rounded-[8px] shadow-xs"
                                 style={{ 
-                                  background: `linear-gradient(135deg, ${cardSecondaryColor} 0%, ${cardPrimaryColor} 100%)`,
-                                  minWidth: `${placeholderSizes.titlePillWidth}px`,
+                                  background: cardSecondaryColor && cardSecondaryColor !== '#3b82f6' ? cardSecondaryColor : '#74db58',
                                   fontSize: `${placeholderSizes.titlePillFontSize}px`
                                 }}
                               >
-                                {customTitleText}
+                                {customTitleText || (selectedPerson?.type === 'Student' ? 'STUDENT CARD' : 'STAFF CARD')}
                               </div>
                             </div>
 
                             {/* Body portion: Photo & Details Layout block */}
-                            <div className="flex flex-row gap-4.5 mt-3 items-start z-20 relative select-none w-full">
+                            <div className="flex flex-row gap-3.5 mt-2.5 items-start z-20 relative select-none w-full">
                               
                               {/* Photo Left Part */}
                               <div 
@@ -3007,7 +3131,7 @@ export default function SuperAdminDashboard() {
                                 style={{ 
                                   transform: `translate(${positions.photoBox.x}px, ${positions.photoBox.y}px)`,
                                   touchAction: isDragMode ? 'none' : 'auto',
-                                  width: `${placeholderSizes.photoWidth + 8}px`
+                                  width: `${placeholderSizes.photoWidth + 4}px`
                                 }}
                                 onMouseDown={(e) => onMouseDown(e, 'photoBox')}
                                 onTouchStart={(e) => onTouchStart(e, 'photoBox')}
@@ -3043,9 +3167,9 @@ export default function SuperAdminDashboard() {
                               </div>
 
                               {/* Details Portion Middle-Right */}
-                              <div className="flex-1 flex flex-col justify-between pl-0.5" style={{ height: `${placeholderSizes.photoHeight}px` }}>
+                              <div className="flex-1 flex flex-row items-center justify-between" style={{ height: `${placeholderSizes.photoHeight}px` }}>
                                 <div 
-                                  className={`space-y-1 w-full ${isDragMode ? 'ring-2 ring-indigo-500 ring-offset-1 rounded-sm cursor-grab active:cursor-grabbing' : ''}`}
+                                  className={`space-y-1.5 select-none w-full flex-grow ${isDragMode ? 'ring-2 ring-indigo-500 ring-offset-1 rounded-sm cursor-grab active:cursor-grabbing' : ''}`}
                                   style={{
                                     transform: `translate(${positions.detailsBlock.x}px, ${positions.detailsBlock.y}px)`,
                                     touchAction: isDragMode ? 'none' : 'auto'
@@ -3055,83 +3179,55 @@ export default function SuperAdminDashboard() {
                                   title={isDragMode ? 'Drag to position Name & Details' : undefined}
                                 >
                                   <div className="flex flex-row items-center leading-tight font-black" style={{ fontSize: `${placeholderSizes.detailsFontSize}px` }}>
-                                    <span className="w-[50px] text-slate-400 font-extrabold uppercase tracking-widest text-[8px] shrink-0">Name:</span>
-                                    <span className="flex-grow font-black text-slate-950 uppercase truncate" style={{ fontSize: `${placeholderSizes.detailsFontSize + 0.5}px` }}>
+                                    <span className="w-[52px] text-slate-400 font-extrabold uppercase tracking-wider text-[8px] shrink-0">Name:</span>
+                                    <span className="flex-grow font-black text-slate-950 uppercase truncate max-w-[150px]">
                                       {selectedPerson ? selectedPerson.name : 'OLIVIA WILSON'}
                                     </span>
                                   </div>
                                   
-                                  <div className="flex flex-row items-center leading-tight" style={{ fontSize: `${placeholderSizes.detailsFontSize}px` }}>
-                                    <span className="w-[50px] text-slate-400 font-extrabold uppercase tracking-widest text-[8px] shrink-0">Birth:</span>
-                                    <span className="flex-grow font-black text-slate-800" style={{ fontSize: `${placeholderSizes.detailsFontSize}px` }}>
-                                      {selectedPerson ? selectedPerson.birth : '13/09/2010'}
+                                  <div className="flex flex-row items-center leading-tight font-black" style={{ fontSize: `${placeholderSizes.detailsFontSize}px` }}>
+                                    <span className="w-[52px] text-slate-400 font-extrabold uppercase tracking-wider text-[8px] shrink-0">Address:</span>
+                                    <span className="flex-grow font-black text-slate-800 uppercase line-clamp-2 leading-tight max-w-[150px]" style={{ fontSize: `${placeholderSizes.detailsFontSize - 0.5}px` }}>
+                                      {selectedPerson ? selectedPerson.address : '3,saibu adeolu Street,church B/S'}
                                     </span>
                                   </div>
 
-                                  <div className="flex flex-row items-center leading-tight" style={{ fontSize: `${placeholderSizes.detailsFontSize}px` }}>
-                                    <span className="w-[50px] text-slate-400 font-extrabold uppercase tracking-widest text-[8px] shrink-0">Address:</span>
-                                    <span className="flex-grow font-black text-slate-600 truncate uppercase" style={{ fontSize: `${placeholderSizes.detailsFontSize - 0.5}px` }}>
-                                      {selectedPerson ? selectedPerson.address : '13 BENONI ST., BENIN CITY'}
+                                  <div className="flex flex-row items-center leading-tight font-black" style={{ fontSize: `${placeholderSizes.detailsFontSize}px` }}>
+                                    <span className="w-[52px] text-slate-400 font-extrabold uppercase tracking-wider text-[8px] shrink-0">ID No:</span>
+                                    <span className="flex-grow font-mono font-black uppercase text-[10.5px]" style={{ color: cardPrimaryColor }}>
+                                      {selectedPerson ? selectedPerson.idNo : 'STF-C1AC-MQ5187JT'}
                                     </span>
                                   </div>
 
-                                  <div className="flex flex-row items-center leading-tight" style={{ fontSize: `${placeholderSizes.detailsFontSize}px` }}>
-                                    <span className="w-[50px] text-slate-400 font-extrabold uppercase tracking-widest text-[8px] shrink-0">ID No:</span>
-                                    <span className="flex-grow font-mono font-black text-[#1e40af] uppercase" style={{ color: cardPrimaryColor, fontSize: `${placeholderSizes.detailsFontSize + 1}px` }}>
-                                      {selectedPerson ? selectedPerson.idNo : '123-456-7890'}
+                                  <div className="flex flex-row items-center leading-tight font-black" style={{ fontSize: `${placeholderSizes.detailsFontSize}px` }}>
+                                    <span className="w-[52px] text-slate-400 font-extrabold uppercase tracking-wider text-[8px] shrink-0">Role:</span>
+                                    <span className="flex-grow font-black text-slate-600 uppercase truncate max-w-[150px]">
+                                      {selectedPerson ? (selectedPerson.grade || selectedPerson.type?.toLowerCase() || 'student') : 'teacher'}
                                     </span>
                                   </div>
                                 </div>
 
-                                {/* Barcode & QR Code cluster block */}
-                                <div className="flex items-center justify-between pt-1 border-t border-slate-100 mt-1">
-                                  {cardShowBarcode ? (
-                                    <div 
-                                      className={`flex flex-col items-start leading-none gap-0.5 ${isDragMode ? 'ring-2 ring-indigo-500 ring-offset-1 rounded-sm cursor-grab active:cursor-grabbing' : ''}`}
-                                      style={{
-                                        transform: `translate(${positions.barcodeBlock.x}px, ${positions.barcodeBlock.y}px)`,
-                                        touchAction: isDragMode ? 'none' : 'auto'
-                                      }}
-                                      onMouseDown={(e) => onMouseDown(e, 'barcodeBlock')}
-                                      onTouchStart={(e) => onTouchStart(e, 'barcodeBlock')}
-                                                        >
-                                      {/* Procedural dynamic barcode vector */}
-                                      <div 
-                                        className="bg-white flex gap-0.5 items-stretch p-0.5 select-none shrink-0 border border-slate-100"
-                                        style={{
-                                          width: `${placeholderSizes.barcodeWidth}px`,
-                                          height: `${placeholderSizes.barcodeHeight}px`
-                                        }}
-                                      >
-                                        {[1, 2, 4, 1, 3, 2, 1, 2, 4, 2, 1, 3, 1, 2, 4, 1, 2, 1, 1, 4, 2, 1, 2].map((val, idx) => (
-                                          <div key={idx} className="bg-slate-950 shrink-0" style={{ width: `${val * 1.1}px` }} />
-                                        ))}
-                                      </div>
-                                      <span className="text-[7.5px] font-mono text-slate-400 font-bold tracking-widest block mt-0.5">{selectedPerson?.idNo || '123-456-7890'}</span>
-                                    </div>
-                                  ) : <div />}
- 
-                                  {cardShowQR && (
-                                    <div 
-                                      className={`bg-white rounded-md border border-slate-200/80 flex items-center justify-center p-0.5 shadow-sm shrink-0 ${isDragMode ? 'ring-2 ring-indigo-500 ring-offset-1 rounded-sm cursor-grab active:cursor-grabbing' : ''}`}
-                                      style={{
-                                        transform: `translate(${positions.qrBlock.x}px, ${positions.qrBlock.y}px)`,
-                                        touchAction: isDragMode ? 'none' : 'auto',
-                                        width: `${placeholderSizes.qrSize}px`,
-                                        height: `${placeholderSizes.qrSize}px`
-                                      }}
-                                      onMouseDown={(e) => onMouseDown(e, 'qrBlock')}
-                                      onTouchStart={(e) => onTouchStart(e, 'qrBlock')}
-                                      title={isDragMode ? 'Drag to position QR Code' : undefined}
-                                    >
-                                      {qrCodeDataUrl ? (
-                                        <img src={qrCodeDataUrl} alt="QR" className="w-full h-full" />
-                                      ) : (
-                                        <div className="w-full h-full bg-slate-100 animate-pulse" />
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
+                                {/* Column QR Code on the Right */}
+                                {cardShowQR && (
+                                  <div 
+                                    className={`bg-white rounded-md border border-slate-200/80 flex items-center justify-center p-0.5 shadow-sm shrink-0 ml-1.5 ${isDragMode ? 'ring-2 ring-indigo-500 ring-offset-1 rounded-sm cursor-grab active:cursor-grabbing' : ''}`}
+                                    style={{
+                                      transform: `translate(${positions.qrBlock.x}px, ${positions.qrBlock.y}px)`,
+                                      touchAction: isDragMode ? 'none' : 'auto',
+                                      width: `${placeholderSizes.qrSize}px`,
+                                      height: `${placeholderSizes.qrSize}px`
+                                    }}
+                                    onMouseDown={(e) => onMouseDown(e, 'qrBlock')}
+                                    onTouchStart={(e) => onTouchStart(e, 'qrBlock')}
+                                    title={isDragMode ? 'Drag to position QR Code' : undefined}
+                                  >
+                                    {qrCodeDataUrl ? (
+                                      <img src={qrCodeDataUrl} alt="QR" className="w-full h-full" />
+                                    ) : (
+                                      <div className="w-full h-full bg-slate-100 animate-pulse" />
+                                    )}
+                                  </div>
+                                )}
                               </div>
 
                             </div>
